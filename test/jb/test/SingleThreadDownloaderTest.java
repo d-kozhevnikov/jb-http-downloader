@@ -42,7 +42,7 @@ public class SingleThreadDownloaderTest {
         }
 
         Collection<TestTask> tasks = Arrays.asList(
-                new TestTask("http://example.com/"),
+                new TestTask("http://google.com/"),
                 new TestTask("http://jetbrains.com/"));
 
         new SingleThreadDownloader().run(tasks, new Downloader.ProgressCallback() {
