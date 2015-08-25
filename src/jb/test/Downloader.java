@@ -8,5 +8,5 @@ public interface Downloader {
         void onFinish();
     }
 
-    void run(Collection<? extends URLTask> tasks, ProgressCallback progressCallback);
+    void run(Collection<? extends URLTask> tasks, ProgressCallback progressCallback) throws InterruptedException;
 }
