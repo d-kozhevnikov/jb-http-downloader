@@ -9,4 +9,5 @@ public interface Downloader {
     }
 
     void run(Collection<? extends URLTask> tasks, ProgressCallback progressCallback) throws InterruptedException;
+    void setThreadsCount(int nThreads);
 }

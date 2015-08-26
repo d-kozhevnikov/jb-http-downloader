@@ -15,4 +15,9 @@ public class SingleThreadDownloader implements Downloader {
         }
         progressCallback.onFinish();
     }
+
+    @Override
+    public void setThreadsCount(int nThreads) {
+        throw new UnsupportedOperationException();
+    }
 }

@@ -1,6 +1,12 @@
 package jb.test;
 
+import jb.test.Downloader;
+import jb.test.SingleThreadDownloader;
+import jb.test.URLTask;
+
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -15,19 +21,20 @@ public class SingleThreadDownloaderTest {
     public void testRun() throws Exception {
         class TestTask implements URLTask {
             private String result = null;
-            private final URL url;
+            private final URI uri;
 
-            public TestTask(String url) throws MalformedURLException {
-                this.url = new URL(url);
+            public TestTask(String url) throws URISyntaxException {
+                this.uri = new URI(url);
             }
 
             @Override
-            public URL getURL() {
-                return url;
+            public URI getURI() {
+                return uri;
             }
 
             @Override
             public void onSuccess(ByteBuffer result) {
+                System.out.format("Downloaded %s in thread %s\n", uri, Thread.currentThread());
                 this.result = StandardCharsets.UTF_8.decode(result).toString();
             }
 
@@ -40,6 +47,7 @@ public class SingleThreadDownloaderTest {
                 return result;
             }
         }
+
 
         Collection<TestTask> tasks = Arrays.asList(
                 new TestTask("http://google.com/"),

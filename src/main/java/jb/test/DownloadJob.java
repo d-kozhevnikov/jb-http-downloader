@@ -1,6 +1,7 @@
 package jb.test;
 
 import java.io.ByteArrayOutputStream;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
@@ -16,7 +17,7 @@ public class DownloadJob implements Runnable {
     @Override
     public void run() {
         try {
-            ReadableByteChannel rbc = Channels.newChannel(task.getURL().openStream());
+            ReadableByteChannel rbc = Channels.newChannel(new URL(task.getURI().toString()).openStream());
             ByteArrayOutputStream out = new ByteArrayOutputStream(); // todo: get content-length and preallocate
 
             ByteBuffer buffer = ByteBuffer.allocate(0xFFF);
