@@ -46,32 +46,8 @@ public class VariableDownloaderTest {
             }
         }
 
-        Collection<TestTask> tasks = Arrays.asList(
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin"),
-                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin")
+        Collection<TestTask> tasks = Collections.nCopies(20,
+            new TestTask("http://vhost2.hansenet.de/1_mb_file.bin")
         );
 
 //        Collection<TestTask> tasks = Arrays.asList(
@@ -118,7 +94,7 @@ public class VariableDownloaderTest {
                 Thread.currentThread().interrupt();
             }
         });
-        Thread.sleep(1000);
+        Thread.sleep(2500);
         System.out.println("Setting 1 thread");
         downloader.setThreadsCount(1);
         f.get();

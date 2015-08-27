@@ -9,10 +9,7 @@ import org.apache.http.concurrent.FutureCallback;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Set;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 
 class Event {
@@ -30,9 +27,8 @@ class Event {
 }
 public class VariableDownloader implements Downloader {
 
-    // fixme: it fails if incoming URLTasks are the same
     private final Set<FutureRequest> activeRequests = Sets.newConcurrentHashSet();
-    private final Set<URLTask> idleTasks = Sets.newConcurrentHashSet();
+    private final BlockingQueue<URLTask> idleTasks = new LinkedBlockingDeque<>();
     private final Event changedEvent = new Event();
     private int nThreads;
     private final ThreadPoolExecutor threadPoolExecutor;
@@ -63,10 +59,9 @@ public class VariableDownloader implements Downloader {
 
     private void addRequest() {
         System.out.format("Adding request, active=%s\n", activeRequests.size());
-        URLTask task = idleTasks.iterator().next();
+        URLTask task = idleTasks.poll();
         if (task == null)
             return;
-        idleTasks.remove(task);
 
         FutureRequest req = new FutureRequest();
         activeRequests.add(req);
