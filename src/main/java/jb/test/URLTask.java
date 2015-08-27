@@ -9,4 +9,5 @@ public interface URLTask {
 
     void onSuccess(ByteBuffer result);
     void onFailure(Throwable cause);
+    void onCancel();
 }

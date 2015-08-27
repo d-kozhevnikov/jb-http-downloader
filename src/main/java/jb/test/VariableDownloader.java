@@ -29,13 +29,20 @@ public class VariableDownloader implements Downloader {
 
     private final Set<FutureRequest> activeRequests = Sets.newConcurrentHashSet();
     private final BlockingQueue<URLTask> idleTasks = new LinkedBlockingDeque<>();
+    private final BlockingDeque<ProgressEvent> progressEvents = new LinkedBlockingDeque<>();
     private final Event changedEvent = new Event();
     private int nThreads;
     private final ThreadPoolExecutor threadPoolExecutor;
+    private int doneTasksCount = 0;
 
     public VariableDownloader(int nThreads) {
         this.nThreads = nThreads;
         threadPoolExecutor = new ThreadPoolExecutor(nThreads, nThreads, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
+    }
+
+    private interface ProgressEvent {
+        boolean incrementTotalProgress();
+        void process();
     }
 
     private class FutureRequest {
@@ -69,18 +76,52 @@ public class VariableDownloader implements Downloader {
         FutureCallback<Content> futureCallback = new FutureCallback<Content>() {
             @Override
             public void completed(Content content) {
-                task.onSuccess(ByteBuffer.wrap(content.asBytes()).asReadOnlyBuffer());
+                progressEvents.addFirst(
+                        new ProgressEvent() {
+                            @Override
+                            public boolean incrementTotalProgress() {
+                                return true;
+                            }
+
+                            @Override
+                            public void process() {
+                                task.onSuccess(ByteBuffer.wrap(content.asBytes()).asReadOnlyBuffer());
+                            }
+                        });
                 onFinish();
             }
 
             @Override
             public void failed(Exception e) {
-                task.onFailure(e);
+                progressEvents.addFirst(
+                        new ProgressEvent() {
+                            @Override
+                            public boolean incrementTotalProgress() {
+                                return false;
+                            }
+
+                            @Override
+                            public void process() {
+                                task.onFailure(e);
+                            }
+                        });
                 onFinish();
             }
 
             @Override
             public void cancelled() {
+                progressEvents.addFirst(
+                        new ProgressEvent() {
+                            @Override
+                            public boolean incrementTotalProgress() {
+                                return false;
+                            }
+
+                            @Override
+                            public void process() {
+                                task.onCancel();
+                            }
+                        });
                 idleTasks.add(task);
                 onFinish();
             }
@@ -101,6 +142,7 @@ public class VariableDownloader implements Downloader {
         while (true) {
             long time = System.currentTimeMillis();
             System.out.format("====== Loop nThreads=%s, active=%s, idle=%s\n", nThreads, activeRequests.size(), idleTasks.size());
+            processProgress(progressCallback, tasks.size());
             if (idleTasks.isEmpty() && activeRequests.isEmpty())
                 break;
             else if (activeRequests.size() > nThreads)
@@ -113,7 +155,22 @@ public class VariableDownloader implements Downloader {
 
         }
 
+        processProgress(progressCallback, tasks.size());
         progressCallback.onFinish();
+    }
+
+    private void processProgress(ProgressCallback progressCallback, int totalTasks) {
+        while (true) {
+            ProgressEvent e = progressEvents.poll();
+            if (e == null)
+                break;
+
+            e.process();
+            if (e.incrementTotalProgress()) {
+                doneTasksCount++;
+                progressCallback.onProgress((double)doneTasksCount / totalTasks);
+            }
+        }
     }
 
     @Override

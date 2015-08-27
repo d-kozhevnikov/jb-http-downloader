@@ -41,13 +41,18 @@ public class VariableDownloaderTest {
                 fail();
             }
 
+            @Override
+            public void onCancel() {
+                System.out.format("Cancelled %s in thread %s\n", uri, Thread.currentThread());
+            }
+
             public String getResult() {
                 return result;
             }
         }
 
         Collection<TestTask> tasks = Collections.nCopies(20,
-            new TestTask("http://vhost2.hansenet.de/1_mb_file.bin")
+                new TestTask("http://vhost2.hansenet.de/1_mb_file.bin")
         );
 
 //        Collection<TestTask> tasks = Arrays.asList(
@@ -57,29 +62,33 @@ public class VariableDownloaderTest {
 //                new TestTask("http://yandex.ru/"),
 //                new TestTask("http://example.com")
 //        );
-//        int cnt = tasks.size();
+        int cnt = tasks.size();
 
         class ProgressCallback implements Downloader.ProgressCallback {
             private int progressCount = 0;
-            private final Thread mainThread = Thread.currentThread();
+            private Thread mainThread;
             private boolean finishCalled = false;
 
             @Override
             public void onProgress(double value) {
-//                assertSame(mainThread, Thread.currentThread());
-//                progressCount++;
-//                assertEquals((double)progressCount / cnt, value, 0.01);
+                assertSame(mainThread, Thread.currentThread());
+                progressCount++;
+                assertEquals((double)progressCount / cnt, value, 0.01);
             }
 
             @Override
             public void onFinish() {
                 finishCalled = true;
-//                assertSame(mainThread, Thread.currentThread());
-//                assertEquals(progressCount, cnt);
+                assertSame(mainThread, Thread.currentThread());
+                assertEquals(progressCount, cnt);
             }
 
             public boolean isFinishCalled() {
                 return finishCalled;
+            }
+
+            public void setMainThread(Thread mainThread) {
+                this.mainThread = mainThread;
             }
         };
 
@@ -89,6 +98,7 @@ public class VariableDownloaderTest {
         ExecutorService service = Executors.newSingleThreadExecutor();
         Future<?> f = service.submit(() -> {
             try {
+                cb.setMainThread(Thread.currentThread());
                 downloader.run(tasks, cb);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
