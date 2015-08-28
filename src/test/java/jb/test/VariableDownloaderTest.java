@@ -26,40 +26,13 @@ public class VariableDownloaderTest {
 //                "http://example.com"
 //        );
 
-
-        class ProgressCallback implements Downloader.ProgressCallback {
-            private int progressCount = 0;
-            private Thread thread;
-            private boolean finishCalled = false;
-
-            @Override
-            public void onProgress(double value) {
-                assertSame(thread, Thread.currentThread());
-                progressCount++;
-                assertEquals((double) progressCount / urls.size(), value, 0.01);
-            }
-
-            @Override
-            public void onFinish() {
-                finishCalled = true;
-                assertSame(thread, Thread.currentThread());
-                assertEquals(progressCount, urls.size());
-            }
-
-            public boolean isFinishCalled() {
-                return finishCalled;
-            }
-
-            public void setThread(Thread Thread) {
-                this.thread = Thread;
-            }
-
-            public Thread getThread() {
-                return thread;
-            }
+        class Helper {
+            public Thread thread;
+            public int successCount = 0;
         }
+        Helper helper = new Helper();
 
-        ProgressCallback cb = new ProgressCallback();
+        Downloader downloader = new VariableDownloader(1);
 
         class TestTask implements URLTask {
             private String result = null;
@@ -80,20 +53,22 @@ public class VariableDownloaderTest {
 
             @Override
             public void onSuccess(ByteBuffer result) {
-                assertSame(cb.getThread(), Thread.currentThread());
+                assertSame(helper.thread, Thread.currentThread());
+                helper.successCount++;
+                assertEquals((double) helper.successCount / urls.size(), downloader.getProgress(), 0.01);
                 System.out.format("Downloaded %s in thread %s\n", uri, Thread.currentThread());
                 this.result = StandardCharsets.UTF_8.decode(result).toString();
             }
 
             @Override
             public void onFailure(Throwable cause) {
-                assertSame(cb.getThread(), Thread.currentThread());
+                assertSame(helper.thread, Thread.currentThread());
                 fail();
             }
 
             @Override
             public void onCancel() {
-                assertSame(cb.getThread(), Thread.currentThread());
+                assertSame(helper.thread, Thread.currentThread());
                 System.out.format("Cancelled %s in thread %s\n", uri, Thread.currentThread());
             }
 
@@ -103,7 +78,7 @@ public class VariableDownloaderTest {
         }
 
         //noinspection Convert2MethodRef
-        Collection<TestTask> tasks = urls.stream().map(url -> new TestTask(url)).collect(Collectors.toList());
+        Collection<TestTask> tasks = urls.stream().map((url) -> new TestTask(url)).collect(Collectors.toList());
 
 //        Collection<TestTask> tasks = Arrays.asList(
 //                new TestTask("http://google.com/"),
@@ -113,13 +88,11 @@ public class VariableDownloaderTest {
 //                new TestTask("http://example.com")
 //        );
 
-        Downloader downloader = new VariableDownloader(1);
-
         ExecutorService service = Executors.newSingleThreadExecutor();
         Future<?> f = service.submit(() -> {
             try {
-                cb.setThread(Thread.currentThread());
-                downloader.run(tasks, cb);
+                helper.thread = Thread.currentThread();
+                downloader.run(tasks);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -132,10 +105,12 @@ public class VariableDownloaderTest {
         downloader.setThreadsCount(3);
         f.get();
 
-        assertTrue(cb.isFinishCalled());
+
 
 //        assertTrue(tasks.stream()
 //                .allMatch((task) -> task.getResult() != null && task.getResult().contains("</html>")));
+
+        assertTrue(helper.successCount == urls.size());
 
         assertTrue(tasks.stream()
                 .allMatch((task) -> task.getResult() != null && task.getResult().length() == 1048576));

@@ -36,6 +36,7 @@ public class VariableDownloader implements Downloader {
     private final ThreadPoolExecutor threadPoolExecutor;
 
     private final BlockingDeque<ProgressEvent> progressEvents = new LinkedBlockingDeque<>();
+    private int tasksCount;
     private int doneTasksCount = 0;
 
     public VariableDownloader(int nThreads) {
@@ -44,21 +45,29 @@ public class VariableDownloader implements Downloader {
     }
 
     @Override
-    public void run(Collection<? extends URLTask> tasks, ProgressCallback progressCallback) throws InterruptedException {
+    public void run(Collection<? extends URLTask> tasks) throws InterruptedException {
+        tasksCount = tasks.size();
         idleTasks.addAll(tasks);
 
         while (true) {
-            processProgress(progressCallback, tasks.size());
+            processProgress();
 
-            System.out.format("nThreads=%s, active=%s, idle=%s\n", nThreads, activeRequests.size(), idleTasks.size());
-            if (!update(tasks, progressCallback))
+            //System.out.format("nThreads=%s, active=%s, idle=%s\n", nThreads, activeRequests.size(), idleTasks.size());
+            if (!update())
                 break;
 
             changedEvent.waitFor();
         }
 
-        processProgress(progressCallback, tasks.size());
-        progressCallback.onFinish();
+        processProgress();
+
+        threadPoolExecutor.shutdownNow();
+        threadPoolExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+    }
+
+    @Override
+    public double getProgress() {
+        return (double)doneTasksCount / tasksCount;
     }
 
     @Override
@@ -72,7 +81,7 @@ public class VariableDownloader implements Downloader {
         changedEvent.fire();
     }
 
-    private synchronized boolean update(Collection<? extends URLTask> tasks, ProgressCallback progressCallback) {
+    private synchronized boolean update() {
         if (idleTasks.isEmpty() && activeRequests.isEmpty())
             return false;
 
@@ -88,7 +97,7 @@ public class VariableDownloader implements Downloader {
     }
 
     private void addRequest(URLTask task) {
-        System.out.format("Adding request, active=%s\n", activeRequests.size());
+        //System.out.format("Adding request, active=%s\n", activeRequests.size());
 
         FutureRequest req = new FutureRequest();
         activeRequests.add(req);
@@ -105,7 +114,7 @@ public class VariableDownloader implements Downloader {
 
                     @Override
                     public void failed(Exception e) {
-                        progressEvents.addFirst(new ProgressEvent(() -> task.onFailure(e), false));
+                        progressEvents.addFirst(new ProgressEvent(() -> task.onFailure(e), true));
                         onTaskFinished(task, req, false);
                     }
 
@@ -119,7 +128,7 @@ public class VariableDownloader implements Downloader {
     }
 
     private void cancelRequest() {
-        System.out.format("Cancelling request, active=%s\n", activeRequests.size());
+        //System.out.format("Cancelling request, active=%s\n", activeRequests.size());
         FutureRequest res;
         res = activeRequests.iterator().next();
         if (res != null)
@@ -133,14 +142,13 @@ public class VariableDownloader implements Downloader {
         changedEvent.fire();
     }
 
-    private void processProgress(ProgressCallback progressCallback, int totalTasks) {
+    private void processProgress() {
         ProgressEvent e;
         while ((e = progressEvents.poll()) != null) {
-            e.process.run();
-            if (e.incrementTotalProgress) {
+            if (e.incrementTotalProgress)
                 doneTasksCount++;
-                progressCallback.onProgress((double) doneTasksCount / totalTasks);
-            }
+
+            e.process.run();
         }
         progressEvents.clear();
     }
