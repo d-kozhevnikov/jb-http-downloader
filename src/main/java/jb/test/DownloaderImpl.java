@@ -102,6 +102,7 @@ public class DownloaderImpl implements Downloader {
         FutureRequest req = new FutureRequest();
         activeRequests.add(req);
 
+        // todo: AIFAK, it provides no API to close connections. Does it really do it? (maybe use non-Fluent interface).
         req.future = Async.newInstance().use(threadPoolExecutor).execute(Request.Get(task.getURI()),
                 new FutureCallback<Content>() {
                     @Override
