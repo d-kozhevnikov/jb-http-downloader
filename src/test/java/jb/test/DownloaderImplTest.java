@@ -86,17 +86,17 @@ public class DownloaderImplTest {
         Future<?> f = service.submit(() -> {
             try {
                 helper.thread = Thread.currentThread();
-                downloader.run(tasks, 1);
+                downloader.run(tasks, 3);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
-        Thread.sleep(1000);
-        System.out.println("Setting 5 threads");
-        downloader.setThreadsCount(5);
-        Thread.sleep(1000);
-        System.out.println("Setting 3 thread");
-        downloader.setThreadsCount(3);
+//        Thread.sleep(1000);
+//        System.out.println("Setting 5 threads");
+//        downloader.setThreadsCount(5);
+//        Thread.sleep(1000);
+//        System.out.println("Setting 3 thread");
+//        downloader.setThreadsCount(3);
         f.get();
 
         assertTrue(helper.successCount == uris.size());

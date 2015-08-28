@@ -33,19 +33,16 @@ public class DownloaderImpl implements Downloader {
     private final Deque<URITask> idleTasks = new ArrayDeque<>();
     private int nThreads;
     private final Event changedEvent = new Event();
-    private final ThreadPoolExecutor threadPoolExecutor;
+    private ThreadPoolExecutor threadPoolExecutor;
 
     private final BlockingDeque<ProgressEvent> progressEvents = new LinkedBlockingDeque<>();
     private int tasksCount;
     private int doneTasksCount = 0;
 
-    public DownloaderImpl() {
-        threadPoolExecutor = new ThreadPoolExecutor(this.nThreads, this.nThreads, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
-    }
-
     @Override
     public void run(Collection<? extends URITask> tasks, int nThreads) throws InterruptedException {
         this.nThreads = nThreads;
+        threadPoolExecutor = new ThreadPoolExecutor(this.nThreads, this.nThreads, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
         tasksCount = tasks.size();
         idleTasks.addAll(tasks);
 
@@ -107,6 +104,7 @@ public class DownloaderImpl implements Downloader {
                 new FutureCallback<Content>() {
                     @Override
                     public void completed(Content content) {
+                        //System.out.format("--- Downloaded in thread %s\n", Thread.currentThread());
                         progressEvents.addFirst(new ProgressEvent(
                                 () -> task.onSuccess(ByteBuffer.wrap(content.asBytes()).asReadOnlyBuffer()),
                                 true));
