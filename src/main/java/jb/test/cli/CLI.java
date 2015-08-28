@@ -164,7 +164,7 @@ public class CLI {
                         .collect(Collectors.toList());
 
         try {
-            downloader.run(tasks);
+            downloader.run(tasks, );
         } catch (InterruptedException e) {
             System.out.println("Interrupted");
         }

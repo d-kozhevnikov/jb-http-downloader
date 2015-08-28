@@ -39,13 +39,13 @@ public class DownloaderImpl implements Downloader {
     private int tasksCount;
     private int doneTasksCount = 0;
 
-    public DownloaderImpl(int nThreads) {
-        this.nThreads = nThreads;
+    public DownloaderImpl() {
         threadPoolExecutor = new ThreadPoolExecutor(this.nThreads, this.nThreads, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
     }
 
     @Override
-    public void run(Collection<? extends URITask> tasks) throws InterruptedException {
+    public void run(Collection<? extends URITask> tasks, int nThreads) throws InterruptedException {
+        this.nThreads = nThreads;
         tasksCount = tasks.size();
         idleTasks.addAll(tasks);
 

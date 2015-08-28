@@ -34,7 +34,7 @@ public class DownloaderImplTest {
         }
         Helper helper = new Helper();
 
-        Downloader downloader = new DownloaderImpl(1);
+        Downloader downloader = new DownloaderImpl();
 
         class TestTask implements URITask {
             private String result = null;
@@ -86,7 +86,7 @@ public class DownloaderImplTest {
         Future<?> f = service.submit(() -> {
             try {
                 helper.thread = Thread.currentThread();
-                downloader.run(tasks);
+                downloader.run(tasks, 1);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -112,7 +112,7 @@ public class DownloaderImplTest {
             "http://jetbrains.com/"
         );
 
-        Downloader downloader = new DownloaderImpl(2);
+        Downloader downloader = new DownloaderImpl();
         class Helper {
             public Thread thread;
             public int finishCount = 0;
@@ -180,7 +180,7 @@ public class DownloaderImplTest {
         service.submit(() -> {
             try {
                 helper.thread = Thread.currentThread();
-                downloader.run(tasks);
+                downloader.run(tasks, 2);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
