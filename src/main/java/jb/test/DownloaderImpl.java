@@ -33,7 +33,6 @@ public class DownloaderImpl implements Downloader {
     private final Deque<URITask> idleTasks = new ArrayDeque<>();
     private int nThreads;
     private final Event changedEvent = new Event();
-    private ThreadPoolExecutor threadPoolExecutor;
 
     private final BlockingDeque<ProgressEvent> progressEvents = new LinkedBlockingDeque<>();
     private int tasksCount;
@@ -42,7 +41,6 @@ public class DownloaderImpl implements Downloader {
     @Override
     public void run(Collection<? extends URITask> tasks, int nThreads) throws InterruptedException {
         this.nThreads = nThreads;
-        threadPoolExecutor = new ThreadPoolExecutor(this.nThreads, this.nThreads, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
         tasksCount = tasks.size();
         idleTasks.addAll(tasks);
 
@@ -57,9 +55,6 @@ public class DownloaderImpl implements Downloader {
         }
 
         processProgress();
-
-        threadPoolExecutor.shutdownNow();
-        threadPoolExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
     }
 
     @Override
@@ -73,8 +68,6 @@ public class DownloaderImpl implements Downloader {
             throw new IllegalArgumentException("nThreads < 1");
 
         this.nThreads = nThreads;
-        threadPoolExecutor.setCorePoolSize(nThreads);
-        threadPoolExecutor.setMaximumPoolSize(nThreads);
         changedEvent.fire();
     }
 
@@ -100,7 +93,7 @@ public class DownloaderImpl implements Downloader {
         activeRequests.add(req);
 
         // todo: AIFAK, it provides no API to close connections. Does it really do it? (maybe use non-Fluent interface).
-        req.future = Async.newInstance().use(threadPoolExecutor).execute(Request.Get(task.getURI()),
+        req.future = Async.newInstance().execute(Request.Get(task.getURI()),
                 new FutureCallback<Content>() {
                     @Override
                     public void completed(Content content) {
