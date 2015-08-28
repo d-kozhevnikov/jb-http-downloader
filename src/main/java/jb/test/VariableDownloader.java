@@ -30,7 +30,7 @@ public class VariableDownloader implements Downloader {
 
     // parts of synchronized state
     private final HashSet<FutureRequest> activeRequests = new HashSet<>();
-    private final Deque<URLTask> idleTasks = new ArrayDeque<>();
+    private final Deque<URITask> idleTasks = new ArrayDeque<>();
     private int nThreads;
     private final Event changedEvent = new Event();
     private final ThreadPoolExecutor threadPoolExecutor;
@@ -45,7 +45,7 @@ public class VariableDownloader implements Downloader {
     }
 
     @Override
-    public void run(Collection<? extends URLTask> tasks) throws InterruptedException {
+    public void run(Collection<? extends URITask> tasks) throws InterruptedException {
         tasksCount = tasks.size();
         idleTasks.addAll(tasks);
 
@@ -89,14 +89,14 @@ public class VariableDownloader implements Downloader {
             cancelRequest();
 
         while (activeRequests.size() < nThreads && !idleTasks.isEmpty()) {
-            URLTask nextTask = idleTasks.remove();
+            URITask nextTask = idleTasks.remove();
             addRequest(nextTask);
         }
 
         return true;
     }
 
-    private void addRequest(URLTask task) {
+    private void addRequest(URITask task) {
         //System.out.format("Adding request, active=%s\n", activeRequests.size());
 
         FutureRequest req = new FutureRequest();
@@ -135,7 +135,7 @@ public class VariableDownloader implements Downloader {
             res.future.cancel(true);
     }
 
-    private synchronized void onTaskFinished(URLTask task, FutureRequest req, boolean cancelled) {
+    private synchronized void onTaskFinished(URITask task, FutureRequest req, boolean cancelled) {
         if (cancelled)
             idleTasks.add(task);
         activeRequests.remove(req);

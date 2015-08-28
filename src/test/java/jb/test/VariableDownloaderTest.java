@@ -17,8 +17,8 @@ public class VariableDownloaderTest {
 
     @org.junit.Test
     public void testRun() throws Exception {
-        Collection<String> urls = Collections.nCopies(20, "http://vhost2.hansenet.de/1_mb_file.bin");
-//        Collection<String> urls = Arrays.asList(
+        Collection<String> uris = Collections.nCopies(20, "http://vhost2.hansenet.de/1_mb_file.bin");
+//        Collection<String> uris = Arrays.asList(
 //                "http://google.com/",
 //                "http://ya.ru/",
 //                "http://jetbrains.com/",
@@ -34,13 +34,13 @@ public class VariableDownloaderTest {
 
         Downloader downloader = new VariableDownloader(1);
 
-        class TestTask implements URLTask {
+        class TestTask implements URITask {
             private String result = null;
             private final URI uri;
 
-            public TestTask(String url) {
+            public TestTask(String uri) {
                 try {
-                    this.uri = new URI(url);
+                    this.uri = new URI(uri);
                 } catch (URISyntaxException e) {
                     throw new RuntimeException(e);
                 }
@@ -55,7 +55,7 @@ public class VariableDownloaderTest {
             public void onSuccess(ByteBuffer result) {
                 assertSame(helper.thread, Thread.currentThread());
                 helper.successCount++;
-                assertEquals((double) helper.successCount / urls.size(), downloader.getProgress(), 0.01);
+                assertEquals((double) helper.successCount / uris.size(), downloader.getProgress(), 0.01);
                 System.out.format("Downloaded %s in thread %s\n", uri, Thread.currentThread());
                 this.result = StandardCharsets.UTF_8.decode(result).toString();
             }
@@ -78,7 +78,7 @@ public class VariableDownloaderTest {
         }
 
         //noinspection Convert2MethodRef
-        Collection<TestTask> tasks = urls.stream().map((url) -> new TestTask(url)).collect(Collectors.toList());
+        Collection<TestTask> tasks = uris.stream().map((uri) -> new TestTask(uri)).collect(Collectors.toList());
 
 //        Collection<TestTask> tasks = Arrays.asList(
 //                new TestTask("http://google.com/"),
@@ -110,7 +110,7 @@ public class VariableDownloaderTest {
 //        assertTrue(tasks.stream()
 //                .allMatch((task) -> task.getResult() != null && task.getResult().contains("</html>")));
 
-        assertTrue(helper.successCount == urls.size());
+        assertTrue(helper.successCount == uris.size());
 
         assertTrue(tasks.stream()
                 .allMatch((task) -> task.getResult() != null && task.getResult().length() == 1048576));

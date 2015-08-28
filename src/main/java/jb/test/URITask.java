@@ -1,10 +1,9 @@
 package jb.test;
 
 import java.net.URI;
-import java.net.URL;
 import java.nio.ByteBuffer;
 
-public interface URLTask {
+public interface URITask {
     URI getURI();
 
     void onSuccess(ByteBuffer result);
