@@ -13,7 +13,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.concurrent.*;
 
-public class VariableDownloader implements Downloader {
+public class DownloaderImpl implements Downloader {
     private class ProgressEvent {
         public final Runnable process;
         public final boolean incrementTotalProgress;
@@ -39,7 +39,7 @@ public class VariableDownloader implements Downloader {
     private int tasksCount;
     private int doneTasksCount = 0;
 
-    public VariableDownloader(int nThreads) {
+    public DownloaderImpl(int nThreads) {
         this.nThreads = nThreads;
         threadPoolExecutor = new ThreadPoolExecutor(this.nThreads, this.nThreads, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
     }

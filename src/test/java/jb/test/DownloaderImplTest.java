@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
 
-public class VariableDownloaderTest {
+public class DownloaderImplTest {
 
     @org.junit.Test
     public void testRun() throws Exception {
@@ -34,7 +34,7 @@ public class VariableDownloaderTest {
         }
         Helper helper = new Helper();
 
-        Downloader downloader = new VariableDownloader(1);
+        Downloader downloader = new DownloaderImpl(1);
 
         class TestTask implements URITask {
             private String result = null;
@@ -112,7 +112,7 @@ public class VariableDownloaderTest {
             "http://jetbrains.com/"
         );
 
-        Downloader downloader = new VariableDownloader(2);
+        Downloader downloader = new DownloaderImpl(2);
         class Helper {
             public Thread thread;
             public int finishCount = 0;

@@ -2,7 +2,7 @@ package jb.test.cli;
 
 import jb.test.Downloader;
 import jb.test.URITask;
-import jb.test.VariableDownloader;
+import jb.test.DownloaderImpl;
 
 import java.io.IOException;
 import java.net.URI;
@@ -157,7 +157,7 @@ public class CLI {
     }
 
     private void process(CmdLineInput input) {
-        Downloader downloader = new VariableDownloader(input.getNThreads());
+        Downloader downloader = new DownloaderImpl(input.getNThreads());
         Collection<URITask> tasks =
                 input.getUris().stream()
                         .map(uri -> new WriteToFileTask(uri, downloader))
