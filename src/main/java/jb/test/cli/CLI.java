@@ -157,16 +157,19 @@ public class CLI {
     }
 
     private void process(CmdLineInput input) {
-        Downloader downloader = new DownloaderImpl();
-        Collection<URITask> tasks =
-                input.getUris().stream()
-                        .map(uri -> new WriteToFileTask(uri, downloader))
-                        .collect(Collectors.toList());
+        try (Downloader downloader = new DownloaderImpl()) {
+            Collection<URITask> tasks =
+                    input.getUris().stream()
+                            .map(uri -> new WriteToFileTask(uri, downloader))
+                            .collect(Collectors.toList());
 
-        try {
-            downloader.run(tasks, input.getNThreads());
-        } catch (InterruptedException e) {
-            System.out.println("Interrupted");
+            try {
+                downloader.run(tasks, input.getNThreads());
+            } catch (InterruptedException e) {
+                System.out.println("Interrupted");
+            }
+        } catch (IOException e) {
+            System.err.println("An error occurred: " + e);
         }
     }
 

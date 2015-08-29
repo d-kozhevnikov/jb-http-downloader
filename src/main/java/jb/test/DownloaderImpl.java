@@ -1,19 +1,27 @@
 package jb.test;
 
 import jb.test.util.Event;
-import org.apache.http.client.fluent.Async;
-import org.apache.http.client.fluent.Content;
-import org.apache.http.client.fluent.Request;
+import org.apache.http.HttpException;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClients;
+import org.apache.http.nio.IOControl;
+import org.apache.http.nio.client.methods.AsyncByteConsumer;
+import org.apache.http.nio.client.methods.HttpAsyncMethods;
+import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
+import org.apache.http.protocol.HttpContext;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.Collection;
-import java.util.Deque;
-import java.util.HashSet;
+import java.util.*;
 import java.util.concurrent.*;
 
 public class DownloaderImpl implements Downloader {
+
+    private final CloseableHttpAsyncClient httpClient;
+
     private class ProgressEvent {
         public final Runnable process;
         public final boolean incrementTotalProgress;
@@ -25,7 +33,47 @@ public class DownloaderImpl implements Downloader {
     }
 
     private class FutureRequest {
-        public Future<Content> future;
+        public Future<HttpResponse> future;
+    }
+
+    private class AsyncConsumer extends AsyncByteConsumer<HttpResponse> {
+
+        private final URITask task;
+        private final ArrayList<Byte> data = new ArrayList<>();
+
+        private AsyncConsumer(URITask task) {
+            this.task = task;
+        }
+
+        public ByteBuffer result() {
+            byte[] bytes = new byte[data.size()];
+            for (int i = 0; i != data.size(); ++i)
+                bytes[i] = data.get(i);
+
+            return ByteBuffer.wrap(bytes).asReadOnlyBuffer();
+        }
+
+        @Override
+        protected void onByteReceived(ByteBuffer byteBuffer, IOControl ioControl) throws IOException {
+//            System.out.format("Received %d-%d from %s in %s thread\n",
+//                    byteBuffer.position(),
+//                    byteBuffer.limit(),
+//                    task,
+//                    Thread.currentThread()
+//            );
+            for (int i = byteBuffer.position(); i < byteBuffer.limit(); ++i) // todo: there must be a better way
+                data.add(byteBuffer.get(i));
+        }
+
+        @Override
+        protected void onResponseReceived(HttpResponse httpResponse) throws HttpException, IOException {
+
+        }
+
+        @Override
+        protected HttpResponse buildResult(HttpContext httpContext) throws Exception {
+            return null;
+        }
     }
 
     // parts of synchronized state
@@ -37,6 +85,15 @@ public class DownloaderImpl implements Downloader {
     private final BlockingDeque<ProgressEvent> progressEvents = new LinkedBlockingDeque<>();
     private int tasksCount;
     private int doneTasksCount = 0;
+
+    public DownloaderImpl() {
+        httpClient = HttpAsyncClients.createDefault();
+    }
+
+    @Override
+    public void close() throws IOException {
+        httpClient.close();
+    }
 
     @Override
     public void run(Collection<? extends URITask> tasks, int nThreads) throws InterruptedException {
@@ -92,31 +149,30 @@ public class DownloaderImpl implements Downloader {
         FutureRequest req = new FutureRequest();
         activeRequests.add(req);
 
-        // todo: AIFAK, it provides no API to close connections. Does it really do it? (maybe use non-Fluent interface).
-        req.future = Async.newInstance().execute(Request.Get(task.getURI()),
-                new FutureCallback<Content>() {
-                    @Override
-                    public void completed(Content content) {
-                        //System.out.format("--- Downloaded in thread %s\n", Thread.currentThread());
-                        progressEvents.addFirst(new ProgressEvent(
-                                () -> task.onSuccess(ByteBuffer.wrap(content.asBytes()).asReadOnlyBuffer()),
-                                true));
-                        onTaskFinished(task, req, false);
-                    }
+        httpClient.start();
+        final HttpGet request = new HttpGet(task.getURI());
+        HttpAsyncRequestProducer producer = HttpAsyncMethods.create(request);
+        AsyncConsumer consumer = new AsyncConsumer(task);
+        req.future = httpClient.execute(producer, consumer, new FutureCallback<HttpResponse>() {
+            @Override
+            public void completed(HttpResponse httpResponse) {
+                //System.out.format("--- Downloaded in thread %s\n", Thread.currentThread());
+                progressEvents.addFirst(new ProgressEvent(() -> task.onSuccess(consumer.result()), true));
+                onTaskFinished(task, req, false);
+            }
 
-                    @Override
-                    public void failed(Exception e) {
-                        progressEvents.addFirst(new ProgressEvent(() -> task.onFailure(e), true));
-                        onTaskFinished(task, req, false);
-                    }
+            @Override
+            public void failed(Exception e) {
+                progressEvents.addFirst(new ProgressEvent(() -> task.onFailure(e), true));
+                onTaskFinished(task, req, false);
+            }
 
-                    @Override
-                    public void cancelled() {
-                        progressEvents.addFirst(new ProgressEvent(task::onCancel, false));
-                        onTaskFinished(task, req, true);
-                    }
-                }
-        );
+            @Override
+            public void cancelled() {
+                progressEvents.addFirst(new ProgressEvent(task::onCancel, false));
+                onTaskFinished(task, req, true);
+            }
+        });
     }
 
     private void cancelRequest() {

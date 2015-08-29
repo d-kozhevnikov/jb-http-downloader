@@ -19,7 +19,7 @@ public class DownloaderImplTest {
 
     @org.junit.Test
     public void testRun() throws Exception {
-        Collection<String> uris = Collections.nCopies(20, "http://vhost2.hansenet.de/1_mb_file.bin");
+        Collection<String> uris = Collections.nCopies(3, "http://vhost2.hansenet.de/1_mb_file.bin");
 //        Collection<String> uris = Arrays.asList(
 //                "http://google.com/",
 //                "http://ya.ru/",
@@ -28,81 +28,81 @@ public class DownloaderImplTest {
 //                "http://example.com"
 //        );
 
-        class Helper {
-            public Thread thread;
-            public int successCount = 0;
-        }
-        Helper helper = new Helper();
+        try (Downloader downloader = new DownloaderImpl()) {
+            class Helper {
+                public Thread thread;
+                public int successCount = 0;
+            }
+            Helper helper = new Helper();
 
-        Downloader downloader = new DownloaderImpl();
+            class TestTask implements URITask {
+                private String result = null;
+                private final URI uri;
 
-        class TestTask implements URITask {
-            private String result = null;
-            private final URI uri;
+                public TestTask(String uri) {
+                    try {
+                        this.uri = new URI(uri);
+                    } catch (URISyntaxException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
 
-            public TestTask(String uri) {
-                try {
-                    this.uri = new URI(uri);
-                } catch (URISyntaxException e) {
-                    throw new RuntimeException(e);
+                @Override
+                public URI getURI() {
+                    return uri;
+                }
+
+                @Override
+                public void onSuccess(ByteBuffer result) {
+                    assertSame(helper.thread, Thread.currentThread());
+                    helper.successCount++;
+                    assertEquals((double) helper.successCount / uris.size(), downloader.getProgress(), 0.01);
+                    System.out.format("Downloaded %s\n", uri);
+                    this.result = StandardCharsets.UTF_8.decode(result).toString();
+                }
+
+                @Override
+                public void onFailure(Throwable cause) {
+                    assertSame(helper.thread, Thread.currentThread());
+                    fail();
+                }
+
+                @Override
+                public void onCancel() {
+                    assertSame(helper.thread, Thread.currentThread());
+                    System.out.format("Cancelled %s\n", uri);
+                }
+
+                public String getResult() {
+                    return result;
                 }
             }
 
-            @Override
-            public URI getURI() {
-                return uri;
-            }
+            //noinspection Convert2MethodRef
+            Collection<TestTask> tasks = uris.stream().map((uri) -> new TestTask(uri)).collect(Collectors.toList());
 
-            @Override
-            public void onSuccess(ByteBuffer result) {
-                assertSame(helper.thread, Thread.currentThread());
-                helper.successCount++;
-                assertEquals((double) helper.successCount / uris.size(), downloader.getProgress(), 0.01);
-                System.out.format("Downloaded %s\n", uri);
-                this.result = StandardCharsets.UTF_8.decode(result).toString();
-            }
-
-            @Override
-            public void onFailure(Throwable cause) {
-                assertSame(helper.thread, Thread.currentThread());
-                fail();
-            }
-
-            @Override
-            public void onCancel() {
-                assertSame(helper.thread, Thread.currentThread());
-                System.out.format("Cancelled %s\n", uri);
-            }
-
-            public String getResult() {
-                return result;
-            }
-        }
-
-        //noinspection Convert2MethodRef
-        Collection<TestTask> tasks = uris.stream().map((uri) -> new TestTask(uri)).collect(Collectors.toList());
-
-        ExecutorService service = Executors.newSingleThreadExecutor();
-        Future<?> f = service.submit(() -> {
-            try {
-                helper.thread = Thread.currentThread();
-                downloader.run(tasks, 3);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
+            ExecutorService service = Executors.newSingleThreadExecutor();
+            Future<?> f = service.submit(() -> {
+                try {
+                    helper.thread = Thread.currentThread();
+                    downloader.run(tasks, 3);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
 //        Thread.sleep(1000);
 //        System.out.println("Setting 5 threads");
 //        downloader.setThreadsCount(5);
 //        Thread.sleep(1000);
 //        System.out.println("Setting 3 thread");
 //        downloader.setThreadsCount(3);
-        f.get();
+            f.get();
 
-        assertTrue(helper.successCount == uris.size());
+            assertTrue(helper.successCount == uris.size());
 
-        assertTrue(tasks.stream()
-                .allMatch((task) -> task.getResult() != null && task.getResult().length() == 1048576));
+            assertTrue(tasks.stream()
+                    .allMatch((task) -> task.getResult() != null && task.getResult().length() == 1048576));
+        }
     }
 
     @org.junit.Test
@@ -112,81 +112,80 @@ public class DownloaderImplTest {
             "http://jetbrains.com/"
         );
 
-        Downloader downloader = new DownloaderImpl();
-        class Helper {
-            public Thread thread;
-            public int finishCount = 0;
-        }
-        Helper helper = new Helper();
+        try (Downloader downloader = new DownloaderImpl()) {
+            class Helper {
+                public Thread thread;
+                public int finishCount = 0;
+            }
+            Helper helper = new Helper();
 
-        class TestTask implements URITask {
-            private final URI uri;
-            private final boolean ok;
+            class TestTask implements URITask {
+                private final URI uri;
+                private final boolean ok;
 
-            public TestTask(String uri, boolean ok) {
-                try {
-                    this.uri = new URI(uri);
-                    this.ok = ok;
-                } catch (URISyntaxException e) {
-                    throw new RuntimeException(e);
+                public TestTask(String uri, boolean ok) {
+                    try {
+                        this.uri = new URI(uri);
+                        this.ok = ok;
+                    } catch (URISyntaxException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                public URI getURI() {
+                    return uri;
+                }
+
+                @Override
+                public void onSuccess(ByteBuffer result) {
+                    System.out.format("Downloaded %s\n", uri);
+                    onFinish();
+
+                    if (!ok)
+                        fail();
+                    else
+                        assertTrue(StandardCharsets.UTF_8.decode(result).toString().contains("</html>"));
+                }
+
+                @Override
+                public void onFailure(Throwable cause) {
+                    System.out.format("Failed %s (%s)\n", uri, cause);
+                    onFinish();
+
+                    if (ok)
+                        fail();
+                }
+
+                @Override
+                public void onCancel() {
+                    assertSame(helper.thread, Thread.currentThread());
+                    System.out.format("Cancelled %s\n", uri);
+                }
+
+                private void onFinish() {
+                    assertSame(helper.thread, Thread.currentThread());
+                    helper.finishCount++;
+                    assertEquals((double) helper.finishCount / uris.size(), downloader.getProgress(), 0.01);
                 }
             }
 
-            @Override
-            public URI getURI() {
-                return uri;
-            }
+            Iterator<String> it = uris.iterator();
+            Collection<TestTask> tasks = Arrays.asList(
+                    new TestTask(it.next(), false),
+                    new TestTask(it.next(), true)
+            );
 
-            @Override
-            public void onSuccess(ByteBuffer result) {
-                System.out.format("Downloaded %s\n", uri);
-                onFinish();
-
-                if (!ok)
-                    fail();
-                else
-                    assertTrue(StandardCharsets.UTF_8.decode(result).toString().contains("</html>"));
-            }
-
-            @Override
-            public void onFailure(Throwable cause) {
-                System.out.format("Failed %s (%s)\n", uri, cause);
-                onFinish();
-
-                if (ok)
-                    fail();
-            }
-
-            @Override
-            public void onCancel() {
-                assertSame(helper.thread, Thread.currentThread());
-                System.out.format("Cancelled %s\n", uri);
-            }
-
-            private void onFinish() {
-                assertSame(helper.thread, Thread.currentThread());
-                helper.finishCount++;
-                assertEquals((double) helper.finishCount / uris.size(), downloader.getProgress(), 0.01);
-            }
+            ExecutorService service = Executors.newSingleThreadExecutor();
+            service.submit(() -> {
+                try {
+                    helper.thread = Thread.currentThread();
+                    downloader.run(tasks, 2);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }).get();
+            assertTrue(helper.finishCount == uris.size());
         }
-
-        Iterator<String> it = uris.iterator();
-        Collection<TestTask> tasks = Arrays.asList(
-                new TestTask(it.next(), false),
-                new TestTask(it.next(), true)
-        );
-
-        ExecutorService service = Executors.newSingleThreadExecutor();
-        service.submit(() -> {
-            try {
-                helper.thread = Thread.currentThread();
-                downloader.run(tasks, 2);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }).get();
-
-        assertTrue(helper.finishCount == uris.size());
-    }
-
+   }
 }
