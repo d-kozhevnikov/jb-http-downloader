@@ -1,13 +1,13 @@
 package jb.test.cli;
 
 import jb.test.Downloader;
+import jb.test.InMemoryURITask;
 import jb.test.URITask;
 import jb.test.DownloaderImpl;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.*;
 import java.util.ArrayList;
@@ -105,26 +105,24 @@ class CmdLineInput {
     }
 }
 
-class WriteToFileTask implements URITask {
-    private final URIAndFile URIAndFile;
+class WriteToFileTask extends InMemoryURITask {
+    private final Path path;
     private final Downloader downloader;
 
-    WriteToFileTask(URIAndFile URIAndFile, Downloader downloader) {
-        this.URIAndFile = URIAndFile;
+    WriteToFileTask(URI uri, Path path, Downloader downloader) {
+        super(uri);
+        this.path = path;
         this.downloader = downloader;
     }
 
     @Override
-    public URI getURI() {
-        return URIAndFile.getUri();
-    }
-
-    @Override
-    public void onSuccess(ByteBuffer result) {
+    public void onSuccess() {
+        super.onSuccess();
         try {
-            try (FileChannel out = FileChannel.open(URIAndFile.getPath(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-                out.write(result);
-                System.out.format("[%3.0f%%] Downloaded %s to %s\n", downloader.getProgress() * 100, URIAndFile.getUri(), URIAndFile.getPath());
+            try (FileChannel out = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+                out.write(getResult());
+                out.force(true);
+                System.out.format("[%3.0f%%] Downloaded %s to %s\n", downloader.getProgress() * 100, getURI(), path);
             }
         } catch (IOException e) {
             processError(e);
@@ -133,15 +131,12 @@ class WriteToFileTask implements URITask {
 
     @Override
     public void onFailure(Throwable cause) {
+        super.onFailure(cause);
         processError(cause);
     }
 
-    @Override
-    public void onCancel() {
-    }
-
     private void processError(Throwable e) {
-        System.out.format("[%3.0f%%] Downloading %s to %s failed (%s)\n", downloader.getProgress() * 100, URIAndFile.getUri(), URIAndFile.getPath(), e);
+        System.out.format("[%3.0f%%] Downloading %s to %s failed (%s)\n", downloader.getProgress() * 100, getURI(), path, e);
     }
 }
 
@@ -160,7 +155,7 @@ public class CLI {
         try (Downloader downloader = new DownloaderImpl()) {
             Collection<URITask> tasks =
                     input.getUris().stream()
-                            .map(uri -> new WriteToFileTask(uri, downloader))
+                            .map(uriAndFile -> new WriteToFileTask(uriAndFile.getUri(), uriAndFile.getPath(), downloader))
                             .collect(Collectors.toList());
 
             try {

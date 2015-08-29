@@ -6,7 +6,10 @@ import java.nio.ByteBuffer;
 public interface URITask {
     URI getURI();
 
-    void onSuccess(ByteBuffer result);
+    void onStart(long contentLength);
+    void onChunkReceived(ByteBuffer chunk);
+
+    void onSuccess();
     void onFailure(Throwable cause);
     void onCancel();
 }
