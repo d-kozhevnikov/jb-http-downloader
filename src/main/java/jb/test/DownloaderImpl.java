@@ -14,6 +14,7 @@ import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.protocol.HttpContext;
 
+import javax.swing.text.html.Option;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -28,14 +29,17 @@ public class DownloaderImpl implements Downloader {
         public Future<HttpResponse> future;
     }
 
+    private class ProgressData {
+        public long downloadedBytes = 0;
+        public Optional<Long> totalBytes = Optional.empty();
+    }
+
     // parts of synchronized state
     private final HashSet<FutureRequest> activeRequests = new HashSet<>();
     private final Deque<URITask> idleTasks = new ArrayDeque<>();
+    private final HashMap<URITask, ProgressData> progress = new HashMap<>();
     private int nThreads;
     private final Event changedEvent = new Event();
-
-    private long totalBytes;
-    private AtomicLong downloadedBytes = new AtomicLong(0);
 
     public DownloaderImpl() {
         httpClient = HttpAsyncClients.createDefault();
@@ -51,15 +55,16 @@ public class DownloaderImpl implements Downloader {
         this.nThreads = nThreads;
 
         for (URITask task : tasks) {
+            progress.put(task, new ProgressData());
             try (CloseableHttpClient headersClient = HttpClients.createDefault()) {
                 HttpGet request = new HttpGet(task.getURI());
                 HttpResponse response = headersClient.execute(request);
                 long length = response.getEntity().getContentLength();
-                if (length < 0)
-                    throw new UnsupportedResourceException();
-                totalBytes += length;
+                if (length >= 0)
+                    setTotalBytes(task, length);
                 idleTasks.add(task);
             } catch (Exception e) {
+                setTotalBytes(task, 0);
                 task.onFailure(e);
             }
         }
@@ -74,8 +79,21 @@ public class DownloaderImpl implements Downloader {
     }
 
     @Override
-    public double getProgress() {
-        return (double) downloadedBytes.get() / totalBytes;
+    public synchronized Progress getProgress() {
+        long downloaded = 0;
+        Optional<Long> total = Optional.of(0L);
+        for (ProgressData d : progress.values()) {
+            downloaded += d.downloadedBytes;
+
+            if (total.isPresent()) {
+                if (d.totalBytes.isPresent())
+                    total = Optional.of(total.get() + d.totalBytes.get());
+                else
+                    total = Optional.empty();
+            }
+        }
+
+        return new Progress(downloaded, total);
     }
 
     @Override
@@ -115,16 +133,21 @@ public class DownloaderImpl implements Downloader {
                     @Override
                     protected void onByteReceived(ByteBuffer buf, IOControl ioctl) throws IOException {
                         assert buf.position() == 0; // I believe so but it is not clear from docs
-                        downloadedBytes.addAndGet(buf.limit());
+                        addProgress(task, buf.limit());
                         task.onChunkReceived(buf);
                         //System.out.format("Received %d from %s in %s thread\n", buf.limit(), task, Thread.currentThread());
                     }
 
                     @Override
                     protected void onResponseReceived(HttpResponse response) throws HttpException, IOException {
-                        if (response.getEntity().getContentLength() < 0)
-                            throw new UnsupportedResourceException();
-                        task.onStart(response.getEntity().getContentLength());
+                        long length = response.getEntity().getContentLength();
+                        Optional<Long> lengthOpt = Optional.empty();
+                        if (length >= 0) {
+                            setTotalBytes(task, length);
+                            lengthOpt = Optional.of(length);
+                        }
+
+                        task.onStart(lengthOpt);
                     }
 
                     @Override
@@ -138,6 +161,7 @@ public class DownloaderImpl implements Downloader {
                     public void completed(HttpResponse httpResponse) {
                         //System.out.format("--- Downloaded in thread %s\n", Thread.currentThread());
                         try {
+                            completeProgress(task);
                             task.onSuccess();
                         } finally {
                             onTaskFinished(task, req, false);
@@ -147,6 +171,7 @@ public class DownloaderImpl implements Downloader {
                     @Override
                     public void failed(Exception e) {
                         try {
+                            setTotalBytes(task, 0);
                             task.onFailure(e);
                         } finally {
                             onTaskFinished(task, req, false);
@@ -156,6 +181,7 @@ public class DownloaderImpl implements Downloader {
                     @Override
                     public void cancelled() {
                         try {
+                            resetProgress(task);
                             task.onCancel();
                         } finally {
                             onTaskFinished(task, req, true);
@@ -170,6 +196,23 @@ public class DownloaderImpl implements Downloader {
         res = activeRequests.iterator().next();
         if (res != null)
             res.future.cancel(true);
+    }
+
+    private synchronized void setTotalBytes(URITask task, long nBytes) {
+        progress.get(task).totalBytes = Optional.of(nBytes);
+    }
+
+    private synchronized void addProgress(URITask task, long nBytes) {
+        progress.get(task).downloadedBytes += nBytes;
+    }
+
+    private synchronized void resetProgress(URITask task) {
+        progress.get(task).downloadedBytes = 0;
+    }
+
+    private synchronized void completeProgress(URITask task) {
+        ProgressData p = progress.get(task);
+        p.totalBytes = Optional.of(p.downloadedBytes);
     }
 
     private synchronized void onTaskFinished(URITask task, FutureRequest req, boolean cancelled) {

@@ -1,10 +1,8 @@
 package jb.test.cli;
 
-import jb.test.Downloader;
-import jb.test.InMemoryURITask;
-import jb.test.URITask;
-import jb.test.DownloaderImpl;
+import jb.test.*;
 
+import javax.swing.text.html.Option;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -13,6 +11,7 @@ import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 
@@ -122,7 +121,7 @@ class WriteToFileTask extends InMemoryURITask {
             try (FileChannel out = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
                 out.write(getResult());
                 out.force(true);
-                System.out.format("[%3.0f%%] Downloaded %s to %s\n", downloader.getProgress() * 100, getURI(), path);
+                System.out.format("[%s] Downloaded %s to %s\n", getProgressStr(), getURI(), path);
             }
         } catch (IOException e) {
             processError(e);
@@ -136,7 +135,19 @@ class WriteToFileTask extends InMemoryURITask {
     }
 
     private void processError(Throwable e) {
-        System.out.format("[%3.0f%%] Downloading %s to %s failed (%s)\n", downloader.getProgress() * 100, getURI(), path, e);
+        System.out.format("[%s] Downloading %s to %s failed (%s)\n", getProgressStr(), getURI(), path, e);
+    }
+
+    private String getProgressStr() {
+        Progress progress = downloader.getProgress();
+
+        String totalStr = "???";
+        String percentStr = "??";
+        if (progress.getTotal().isPresent()) {
+            totalStr = Long.toString(progress.getTotal().get() / 1024);
+            percentStr = String.format("%.0f", (double)progress.getDownloaded() / progress.getTotal().get() * 100.);
+        }
+        return String.format("%6sKB/%6sKB (%3s%%)", progress.getDownloaded() / 1024, totalStr, percentStr);
     }
 }
 

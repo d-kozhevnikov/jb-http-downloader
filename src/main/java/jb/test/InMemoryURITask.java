@@ -2,6 +2,7 @@ package jb.test;
 
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.util.Optional;
 
 public class InMemoryURITask implements URITask {
     private final URI uri;
@@ -17,12 +18,16 @@ public class InMemoryURITask implements URITask {
     }
 
     @Override
-    public void onStart(long contentLength) {
-        result = ByteBuffer.allocate((int) contentLength);
+    public void onStart(Optional<Long> contentLength) {
+        result = ByteBuffer.allocate(contentLength.orElse(0xFFFFFL).intValue());
     }
 
     @Override
     public void onChunkReceived(ByteBuffer chunk) {
+        if (result.remaining() < chunk.limit()) {
+            result.flip();
+            result = ByteBuffer.allocate(result.capacity() * 2).put(result);
+        }
         result.put(chunk);
     }
 
