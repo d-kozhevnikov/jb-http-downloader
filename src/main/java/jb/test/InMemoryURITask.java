@@ -42,6 +42,7 @@ public class InMemoryURITask implements URITask {
 
     @Override
     public void onCancel() {
+        result.clear();
     }
 
     public ByteBuffer getResult() {

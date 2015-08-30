@@ -2,16 +2,24 @@ package jb.test;
 
 import jb.test.util.Event;
 import org.apache.http.*;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
+import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
+import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
 import org.apache.http.nio.IOControl;
 import org.apache.http.nio.client.methods.AsyncByteConsumer;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
+import org.apache.http.nio.reactor.IOReactorException;
 import org.apache.http.protocol.HttpContext;
 
 import javax.swing.text.html.Option;
@@ -42,7 +50,14 @@ public class DownloaderImpl implements Downloader {
     private final Event changedEvent = new Event();
 
     public DownloaderImpl() {
-        httpClient = HttpAsyncClients.createDefault();
+        PoolingNHttpClientConnectionManager poolingConnManager = null;
+        try {
+            poolingConnManager = new PoolingNHttpClientConnectionManager(new DefaultConnectingIOReactor());
+            poolingConnManager.setDefaultMaxPerRoute(20);
+            httpClient = HttpAsyncClients.custom().setConnectionManager(poolingConnManager).build();
+        } catch (IOReactorException e) {
+            throw new RuntimeException(e); // todo
+        }
     }
 
     @Override
@@ -128,6 +143,7 @@ public class DownloaderImpl implements Downloader {
         httpClient.start();
         final HttpGet request = new HttpGet(task.getURI());
         HttpAsyncRequestProducer producer = HttpAsyncMethods.create(request);
+        System.out.println("Executing for " + task);
         req.future = httpClient.execute(producer,
                 new AsyncByteConsumer<HttpResponse>() {
                     @Override

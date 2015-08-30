@@ -1,5 +1,8 @@
 package jb.test.cli;
 
+import jb.test.CmdLineInput;
+import jb.test.URIAndFile;
+
 import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
