@@ -1,46 +1,32 @@
 package jb.test;
 
 import jb.test.util.Event;
-import org.apache.http.*;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.ResponseHandler;
+import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClients;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.nio.IOControl;
-import org.apache.http.nio.client.methods.AsyncByteConsumer;
-import org.apache.http.nio.client.methods.HttpAsyncMethods;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.reactor.IOReactorException;
-import org.apache.http.protocol.HttpContext;
+import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
 
-import javax.swing.text.html.Option;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class DownloaderImpl implements Downloader {
 
-    private final CloseableHttpAsyncClient httpClient;
+    private static final int BUFFER_SIZE = 1024;
 
     private class FutureRequest {
-        public Future<HttpResponse> future;
+        public Future<?> future;
     }
 
     private class ProgressData {
         public long downloadedBytes = 0;
         public Optional<Long> totalBytes = Optional.empty();
     }
+
+    private ThreadPoolExecutor executor;
 
     // parts of synchronized state
     private final HashSet<FutureRequest> activeRequests = new HashSet<>();
@@ -50,23 +36,15 @@ public class DownloaderImpl implements Downloader {
     private final Event changedEvent = new Event();
 
     public DownloaderImpl() {
-        PoolingNHttpClientConnectionManager poolingConnManager = null;
-        try {
-            poolingConnManager = new PoolingNHttpClientConnectionManager(new DefaultConnectingIOReactor());
-            poolingConnManager.setDefaultMaxPerRoute(20);
-            httpClient = HttpAsyncClients.custom().setConnectionManager(poolingConnManager).build();
-        } catch (IOReactorException e) {
-            throw new RuntimeException(e); // todo
-        }
     }
 
     @Override
     public void close() throws IOException {
-        httpClient.close();
     }
 
     @Override
     public void run(Collection<? extends URITask> tasks, int nThreads) throws InterruptedException {
+        executor = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
         this.nThreads = nThreads;
 
         for (URITask task : tasks) {
@@ -85,7 +63,6 @@ public class DownloaderImpl implements Downloader {
         }
 
         while (true) {
-            //System.out.format("nThreads=%s, active=%s, idle=%s\n", nThreads, activeRequests.size(), idleTasks.size());
             if (!update())
                 break;
 
@@ -117,6 +94,10 @@ public class DownloaderImpl implements Downloader {
             throw new IllegalArgumentException("nThreads < 1");
 
         this.nThreads = nThreads;
+        if (executor != null) {
+            executor.setCorePoolSize(nThreads);
+            executor.setMaximumPoolSize(nThreads);
+        }
         changedEvent.fire();
     }
 
@@ -136,82 +117,59 @@ public class DownloaderImpl implements Downloader {
     }
 
     private void addRequest(URITask task) {
-        //System.out.format("Adding request, active=%s\n", activeRequests.size());
         FutureRequest req = new FutureRequest();
         activeRequests.add(req);
 
-        httpClient.start();
-        final HttpGet request = new HttpGet(task.getURI());
-        HttpAsyncRequestProducer producer = HttpAsyncMethods.create(request);
-        System.out.println("Executing for " + task);
-        req.future = httpClient.execute(producer,
-                new AsyncByteConsumer<HttpResponse>() {
-                    @Override
-                    protected void onByteReceived(ByteBuffer buf, IOControl ioctl) throws IOException {
-                        assert buf.position() == 0; // I believe so but it is not clear from docs
-                        addProgress(task, buf.limit());
-                        task.onChunkReceived(buf);
-                        //System.out.format("Received %d from %s in %s thread\n", buf.limit(), task, Thread.currentThread());
-                    }
+        req.future = executor.submit(() -> {
+            try (BasicHttpClientConnectionManager cm = new BasicHttpClientConnectionManager()) {
+                try (CloseableHttpClient httpClient = HttpClients.custom().setConnectionManager(cm).build()) {
+                    final HttpGet request = new HttpGet(task.getURI());
+                    final HttpResponse response = httpClient.execute(request);
 
-                    @Override
-                    protected void onResponseReceived(HttpResponse response) throws HttpException, IOException {
-                        long length = response.getEntity().getContentLength();
-                        Optional<Long> lengthOpt = Optional.empty();
-                        if (length >= 0) {
-                            setTotalBytes(task, length);
-                            lengthOpt = Optional.of(length);
+                    long length = response.getEntity().getContentLength();
+                    Optional<Long> lengthOpt = Optional.empty();
+                    if (length >= 0) {
+                        setTotalBytes(task, length);
+                        lengthOpt = Optional.of(length);
+                    }
+                    task.onStart(lengthOpt);
+
+
+                    try (InputStream remoteContentStream = response.getEntity().getContent()) {
+                        byte[] buffer = new byte[BUFFER_SIZE];
+                        int bytesRead;
+                        while ((bytesRead = remoteContentStream.read(buffer)) != -1) {
+                            if (Thread.interrupted()) {
+                                resetProgress(task);
+                                task.onCancel();
+                                onTaskFinished(task, req, true);
+                                return;
+                            }
+
+                            addProgress(task, bytesRead);
+                            task.onChunkReceived(ByteBuffer.wrap(buffer, 0, bytesRead).asReadOnlyBuffer());
+                            Thread.yield();
                         }
 
-                        task.onStart(lengthOpt);
+                        completeProgress(task);
+                        task.onSuccess();
+                        onTaskFinished(task, req, false);
                     }
-
-                    @Override
-                    protected HttpResponse buildResult(HttpContext context) throws Exception {
-                        return null;
-                    }
-                },
-
-                new FutureCallback<HttpResponse>() {
-                    @Override
-                    public void completed(HttpResponse httpResponse) {
-                        //System.out.format("--- Downloaded in thread %s\n", Thread.currentThread());
-                        try {
-                            completeProgress(task);
-                            task.onSuccess();
-                        } finally {
-                            onTaskFinished(task, req, false);
-                        }
-                    }
-
-                    @Override
-                    public void failed(Exception e) {
-                        try {
-                            setTotalBytes(task, 0);
-                            task.onFailure(e);
-                        } finally {
-                            onTaskFinished(task, req, false);
-                        }
-                    }
-
-                    @Override
-                    public void cancelled() {
-                        try {
-                            resetProgress(task);
-                            task.onCancel();
-                        } finally {
-                            onTaskFinished(task, req, true);
-                        }
-                    }
-                });
+                }
+            } catch (IOException e) {
+                setTotalBytes(task, 0);
+                task.onFailure(e);
+                onTaskFinished(task, req, false);
+            }
+        });
     }
 
     private void cancelRequest() {
-        //System.out.format("Cancelling request, active=%s\n", activeRequests.size());
         FutureRequest res;
         res = activeRequests.iterator().next();
         if (res != null)
             res.future.cancel(true);
+        activeRequests.remove(res);
     }
 
     private synchronized void setTotalBytes(URITask task, long nBytes) {

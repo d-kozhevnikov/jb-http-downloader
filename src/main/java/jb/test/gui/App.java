@@ -212,15 +212,15 @@ public class App {
         threadCountSpinner.setModel(new SpinnerNumberModel(input.getNThreads(), 1, Math.max(input.getNThreads(), 32), 1));
         threadCountSpinner.addChangeListener(e -> downloader.setThreadsCount((Integer) threadCountSpinner.getValue()));
 
-        startButton.addActionListener(e -> {
-            executor.submit(() -> {
-                try {
-                    downloader.run(tasks, (Integer) threadCountSpinner.getValue());
-                } catch (InterruptedException e1) {
-                    Thread.currentThread().interrupt();
+        startButton.addActionListener(e ->
+                executor.submit(() -> {
+                    try {
+                        downloader.run(tasks, (Integer) threadCountSpinner.getValue());
+                    } catch (InterruptedException e1) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
-            });
-        });
+        ));
 
         frame.pack();
         frame.setVisible(true);
