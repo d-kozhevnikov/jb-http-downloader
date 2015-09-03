@@ -10,9 +10,7 @@ import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -42,23 +40,20 @@ public class App {
         return String.format("%s (%s%%)", bytesStr, percentStr);
     }
 
-    private class GUITask extends InMemoryURITask {
-        private final Path path;
+    private class GUITask extends RandomAccessFileURITask {
         private final JProgressBar progressBar;
         private final JLabel urlLabel;
 
         private Optional<Long> length = Optional.empty();
-        private long downloaded = 0;
 
-        GUITask(URI uri, Path path, JProgressBar progressBar, JLabel urlLabel) {
-            super(uri);
-            this.path = path;
+        GUITask(URI uri, Path path, JProgressBar progressBar, JLabel urlLabel) throws IOException {
+            super(uri, path);
             this.progressBar = progressBar;
             this.urlLabel = urlLabel;
         }
 
         @Override
-        public void onStart(Optional<Long> contentLength) {
+        public void onStart(Optional<Long> contentLength) throws IOException {
             super.onStart(contentLength);
 
             length = contentLength;
@@ -69,7 +64,7 @@ public class App {
 
                 progressBar.setMinimum(0);
                 if (length.isPresent())
-                    progressBar.setMaximum(length.get().intValue());
+                    progressBar.setMaximum((int) (length.get() / 1024));
                 else
                     progressBar.setIndeterminate(true);
 
@@ -78,29 +73,9 @@ public class App {
         }
 
         @Override
-        public void onChunkReceived(ByteBuffer chunk) {
+        public void onChunkReceived(ByteBuffer chunk) throws IOException {
             super.onChunkReceived(chunk);
-
-            downloaded += chunk.limit();
             SwingUtilities.invokeLater(() -> updateProgressBar(false, null));
-        }
-
-        @Override
-        public void onSuccess() {
-            super.onSuccess();
-
-            try {
-                try (FileChannel out = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-                    out.write(getResult());
-                    out.force(true);
-                    SwingUtilities.invokeLater(() -> {
-                        progressBar.setMaximum(getResult().limit());
-                        updateProgressBar(true, null);
-                    });
-                }
-            } catch (IOException e) {
-                processError(e);
-            }
         }
 
         @Override
@@ -110,9 +85,8 @@ public class App {
         }
 
         @Override
-        public void onCancel() {
+        public void onCancel() throws IOException {
             super.onCancel();
-            downloaded = 0;
             SwingUtilities.invokeLater(() -> updateProgressBar(false, null));
         }
 
@@ -121,14 +95,14 @@ public class App {
         }
 
         private void updateProgressBar(boolean done, Throwable error) {
-            progressBar.setValue((int) downloaded);
+            progressBar.setValue((int) (getWrittenLength() / 1024));
 
             if (done)
                 progressBar.setString("Done!");
             else if (error != null)
                 progressBar.setString("Error: " + error);
             else
-                progressBar.setString(getProgressString(downloaded, length));
+                progressBar.setString(getProgressString(getWrittenLength(), length));
 
             progressBar.setIndeterminate(!done && error != null && !length.isPresent());
             updateTotalProgressBar();
@@ -149,8 +123,8 @@ public class App {
         Progress p = downloader.getProgress();
         totalProgress.setIndeterminate(!p.getTotal().isPresent());
         if (p.getTotal().isPresent()) {
-            totalProgress.setMaximum(p.getTotal().get().intValue());
-            totalProgress.setValue((int) p.getDownloaded());
+            totalProgress.setMaximum((int) (p.getTotal().get() / 1024));
+            totalProgress.setValue((int) (p.getDownloaded() / 1024));
         }
         totalProgress.setString(getProgressString(p.getDownloaded(), p.getTotal()));
     }
@@ -204,7 +178,11 @@ public class App {
             pb.setStringPainted(true);
             tasksPanel.add(pb, pbC);
 
-            tasks.add(new GUITask(uri.getUri(), uri.getPath(), pb, urlLabel));
+            try {
+                tasks.add(new GUITask(uri.getUri(), uri.getPath(), pb, urlLabel));
+            } catch (IOException e) {
+                pb.setString("Error: " + e);
+            }
 
             row++;
         }
