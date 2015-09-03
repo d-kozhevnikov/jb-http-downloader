@@ -9,17 +9,41 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 
+class ProgressData {
+    private volatile long downloadedBytes = 0;
+    private volatile Optional<Long> totalBytes = Optional.empty();
+
+    public long getDownloadedBytes() {
+        return downloadedBytes;
+    }
+
+    public Optional<Long> getTotalBytes() {
+        return totalBytes;
+    }
+
+    public void addDownloadedBytes(long add) {
+        downloadedBytes += add;
+        assert !totalBytes.isPresent() || totalBytes.get() >= downloadedBytes;
+    }
+
+    public void resetDownloadedBytes() {
+        downloadedBytes = 0;
+        assert !totalBytes.isPresent() || totalBytes.get() >= downloadedBytes;
+    }
+
+    public void setTotalBytes(long val) {
+        totalBytes = Optional.of(val);
+        assert totalBytes.get() >= downloadedBytes;
+    }
+}
+
+
 public class DownloaderImpl implements Downloader {
 
     private static final int BUFFER_SIZE = 1024;
 
     private class FutureRequest {
         public Future<?> future;
-    }
-
-    private class ProgressData {
-        public long downloadedBytes = 0;
-        public Optional<Long> totalBytes = Optional.empty();
     }
 
     private ThreadPoolExecutor executor;
@@ -60,15 +84,17 @@ public class DownloaderImpl implements Downloader {
         this.nThreads = nThreads;
 
         for (URITask task : tasks) {
-            progress.put(task, new ProgressData());
+            ProgressData progressData = new ProgressData();
+            progress.put(task, progressData);
             try {
                 URLConnection conn = task.getURI().toURL().openConnection();
                 long length = conn.getContentLengthLong();
                 if (length >= 0)
-                    setTotalBytes(task, length);
+                    progressData.setTotalBytes(length);
+
+
                 idleTasks.add(task);
-            } catch (Exception e) {
-                setTotalBytes(task, 0);
+            } catch (IOException e) {
                 task.onFailure(e);
             }
         }
@@ -82,21 +108,25 @@ public class DownloaderImpl implements Downloader {
     }
 
     @Override
-    public synchronized Progress getProgress() {
-        long downloaded = 0;
-        Optional<Long> total = Optional.of(0L);
-        for (ProgressData d : progress.values()) {
-            downloaded += d.downloadedBytes;
+    public Progress getProgress() {
+        // Note: don't care about any changes in progress while collecting it
+        // it would represent the valid state at some point in time anyways
 
-            if (total.isPresent()) {
-                if (d.totalBytes.isPresent())
-                    total = Optional.of(total.get() + d.totalBytes.get());
+        long downloaded = 0;
+        Optional<Long> sum = Optional.of(0L);
+        for (ProgressData d : progress.values()) {
+            downloaded += d.getDownloadedBytes();
+
+            if (sum.isPresent()) {
+                Optional<Long> total = d.getTotalBytes();
+                if (total.isPresent())
+                    sum = Optional.of(sum.get() + total.get());
                 else
-                    total = Optional.empty();
+                    sum = Optional.empty();
             }
         }
 
-        return new Progress(downloaded, total);
+        return new Progress(downloaded, sum);
     }
 
     @Override
@@ -131,15 +161,15 @@ public class DownloaderImpl implements Downloader {
         FutureRequest req = new FutureRequest();
         activeRequests.add(req);
 
+        ProgressData progressData = progress.get(task);
         req.future = executor.submit(() -> {
-
             try {
                 URLConnection conn = task.getURI().toURL().openConnection();
 
                 long length = conn.getContentLengthLong();
                 Optional<Long> lengthOpt = Optional.empty();
                 if (length >= 0) {
-                    setTotalBytes(task, length);
+                    progressData.setTotalBytes(length);
                     lengthOpt = Optional.of(length);
                 }
                 task.onStart(lengthOpt);
@@ -150,22 +180,21 @@ public class DownloaderImpl implements Downloader {
                 while ((bytesRead = remoteContentStream.read(buffer)) != -1) {
                     if (Thread.interrupted()) {
                         remoteContentStream.close();
-                        resetProgress(task);
+                        progressData.resetDownloadedBytes();
                         task.onCancel();
                         onTaskFinished(task, req, true);
                         return;
                     }
 
-                    addProgress(task, bytesRead);
+                    progressData.addDownloadedBytes(bytesRead);
                     task.onChunkReceived(ByteBuffer.wrap(buffer, 0, bytesRead).asReadOnlyBuffer());
                     Thread.yield();
                 }
 
-                completeProgress(task);
+                progressData.setTotalBytes(progressData.getDownloadedBytes());
                 task.onSuccess();
                 onTaskFinished(task, req, false);
             } catch (IOException e) {
-                setTotalBytes(task, 0);
                 task.onFailure(e);
                 onTaskFinished(task, req, false);
             }
@@ -178,23 +207,6 @@ public class DownloaderImpl implements Downloader {
         if (res != null)
             res.future.cancel(true);
         activeRequests.remove(res);
-    }
-
-    private synchronized void setTotalBytes(URITask task, long nBytes) {
-        progress.get(task).totalBytes = Optional.of(nBytes);
-    }
-
-    private synchronized void addProgress(URITask task, long nBytes) {
-        progress.get(task).downloadedBytes += nBytes;
-    }
-
-    private synchronized void resetProgress(URITask task) {
-        progress.get(task).downloadedBytes = 0;
-    }
-
-    private synchronized void completeProgress(URITask task) {
-        ProgressData p = progress.get(task);
-        p.totalBytes = Optional.of(p.downloadedBytes);
     }
 
     private synchronized void onTaskFinished(URITask task, FutureRequest req, boolean cancelled) {
