@@ -156,7 +156,7 @@ public class DownloaderImpl implements Downloader {
                         onTaskFinished(task, req, false);
                     }
                 }
-            } catch (IOException e) {
+            } catch (Throwable e) {
                 setTotalBytes(task, 0);
                 task.onFailure(e);
                 onTaskFinished(task, req, false);
