@@ -147,9 +147,10 @@ public class App {
                     downloader.close();
                     executor.shutdown();
                     executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-                    System.out.println("Done");
-                } catch (Exception e1) {
+                } catch (IOException e1) {
                     e1.printStackTrace();
+                } catch (InterruptedException e1) {
+                    Thread.currentThread().interrupt();
                 }
                 super.windowClosing(e);
             }

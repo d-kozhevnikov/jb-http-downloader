@@ -78,6 +78,7 @@ public class CLI {
                 downloader.run(tasks, input.getNThreads());
             } catch (InterruptedException e) {
                 System.out.println("Interrupted");
+                Thread.currentThread().interrupt();
             }
         } catch (IOException e) {
             System.err.println("An error occurred: " + e);
