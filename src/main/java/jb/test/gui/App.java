@@ -91,6 +91,7 @@ public class App {
         }
 
         private void processError(Throwable e) {
+            e.printStackTrace();
             SwingUtilities.invokeLater(() -> updateProgressBar(false, e));
         }
 
@@ -145,7 +146,8 @@ public class App {
                 try {
                     downloader.close();
                     executor.shutdown();
-                    executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+                    executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+                    System.out.println("Done");
                 } catch (Exception e1) {
                     e1.printStackTrace();
                 }
@@ -192,13 +194,21 @@ public class App {
 
         startButton.addActionListener(e ->
                 executor.submit(() -> {
-                    try {
-                        downloader.run(tasks, (Integer) threadCountSpinner.getValue());
-                    } catch (InterruptedException e1) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-        ));
+                            try {
+                                downloader.run(tasks, (Integer) threadCountSpinner.getValue());
+                            } catch (InterruptedException e1) {
+                                Thread.currentThread().interrupt();
+                            }
+                        }
+                ));
+
+        stopButton.addActionListener(e -> {
+            try {
+                downloader.close();
+            } catch (IOException error) {
+                error.printStackTrace();
+            }
+        });
 
         frame.pack();
         frame.setVisible(true);

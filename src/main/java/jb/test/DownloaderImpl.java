@@ -1,14 +1,10 @@
 package jb.test;
 
 import jb.test.util.Event;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLConnection;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
@@ -34,25 +30,40 @@ public class DownloaderImpl implements Downloader {
     private final HashMap<URITask, ProgressData> progress = new HashMap<>();
     private int nThreads;
     private final Event changedEvent = new Event();
+    private volatile boolean stopped = true;
 
     public DownloaderImpl() {
     }
 
     @Override
     public void close() throws IOException {
+        stopped = true;
+        idleTasks.clear();
+        changedEvent.fire();
+
+        if (executor != null) {
+            executor.shutdownNow();
+            try {
+                executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        progress.clear();
+        executor = null;
     }
 
     @Override
     public void run(Collection<? extends URITask> tasks, int nThreads) throws InterruptedException {
-        executor = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingDeque<>());
+        stopped = false;
+        executor = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.NANOSECONDS, new LinkedBlockingDeque<>());
         this.nThreads = nThreads;
 
         for (URITask task : tasks) {
             progress.put(task, new ProgressData());
-            try (CloseableHttpClient headersClient = HttpClients.createDefault()) {
-                HttpGet request = new HttpGet(task.getURI());
-                HttpResponse response = headersClient.execute(request);
-                long length = response.getEntity().getContentLength();
+            try {
+                URLConnection conn = task.getURI().toURL().openConnection();
+                long length = conn.getContentLengthLong();
                 if (length >= 0)
                     setTotalBytes(task, length);
                 idleTasks.add(task);
@@ -121,42 +132,39 @@ public class DownloaderImpl implements Downloader {
         activeRequests.add(req);
 
         req.future = executor.submit(() -> {
-            try (BasicHttpClientConnectionManager cm = new BasicHttpClientConnectionManager()) {
-                try (CloseableHttpClient httpClient = HttpClients.custom().setConnectionManager(cm).build()) {
-                    final HttpGet request = new HttpGet(task.getURI());
-                    final HttpResponse response = httpClient.execute(request);
 
-                    long length = response.getEntity().getContentLength();
-                    Optional<Long> lengthOpt = Optional.empty();
-                    if (length >= 0) {
-                        setTotalBytes(task, length);
-                        lengthOpt = Optional.of(length);
-                    }
-                    task.onStart(lengthOpt);
+            try {
+                URLConnection conn = task.getURI().toURL().openConnection();
 
-
-                    try (InputStream remoteContentStream = response.getEntity().getContent()) {
-                        byte[] buffer = new byte[BUFFER_SIZE];
-                        int bytesRead;
-                        while ((bytesRead = remoteContentStream.read(buffer)) != -1) {
-                            if (Thread.interrupted()) {
-                                resetProgress(task);
-                                task.onCancel();
-                                onTaskFinished(task, req, true);
-                                return;
-                            }
-
-                            addProgress(task, bytesRead);
-                            task.onChunkReceived(ByteBuffer.wrap(buffer, 0, bytesRead).asReadOnlyBuffer());
-                            Thread.yield();
-                        }
-
-                        completeProgress(task);
-                        task.onSuccess();
-                        onTaskFinished(task, req, false);
-                    }
+                long length = conn.getContentLengthLong();
+                Optional<Long> lengthOpt = Optional.empty();
+                if (length >= 0) {
+                    setTotalBytes(task, length);
+                    lengthOpt = Optional.of(length);
                 }
-            } catch (Throwable e) {
+                task.onStart(lengthOpt);
+
+                InputStream remoteContentStream = conn.getInputStream();
+                byte[] buffer = new byte[BUFFER_SIZE];
+                int bytesRead;
+                while ((bytesRead = remoteContentStream.read(buffer)) != -1) {
+                    if (Thread.interrupted()) {
+                        remoteContentStream.close();
+                        resetProgress(task);
+                        task.onCancel();
+                        onTaskFinished(task, req, true);
+                        return;
+                    }
+
+                    addProgress(task, bytesRead);
+                    task.onChunkReceived(ByteBuffer.wrap(buffer, 0, bytesRead).asReadOnlyBuffer());
+                    Thread.yield();
+                }
+
+                completeProgress(task);
+                task.onSuccess();
+                onTaskFinished(task, req, false);
+            } catch (IOException e) {
                 setTotalBytes(task, 0);
                 task.onFailure(e);
                 onTaskFinished(task, req, false);
@@ -190,7 +198,7 @@ public class DownloaderImpl implements Downloader {
     }
 
     private synchronized void onTaskFinished(URITask task, FutureRequest req, boolean cancelled) {
-        if (cancelled)
+        if (cancelled && !stopped)
             idleTasks.add(task);
         activeRequests.remove(req);
         changedEvent.fire();

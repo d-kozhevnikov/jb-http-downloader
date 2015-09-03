@@ -12,21 +12,19 @@ import java.util.Optional;
 public class RandomAccessFileURITask implements Closeable, URITask {
 
     private final URI uri;
+    private final Path path;
     private RandomAccessFile f;
     private FileChannel channel;
     private long fileLength = 0L;
+    private long writtenLength = 0L;
+
+    public RandomAccessFileURITask(URI uri, Path path) throws IOException {
+        this.uri = uri;
+        this.path = path;
+    }
 
     public long getWrittenLength() {
         return writtenLength;
-    }
-
-    private long writtenLength = 0L;
-
-
-    public RandomAccessFileURITask(URI uri, Path path) throws IOException {
-        f = new RandomAccessFile(path.toFile(), "rw");
-        channel = f.getChannel();
-        this.uri = uri;
     }
 
     @Override
@@ -41,8 +39,11 @@ public class RandomAccessFileURITask implements Closeable, URITask {
 
     @Override
     public void onStart(Optional<Long> contentLength) throws IOException {
+        f = new RandomAccessFile(path.toFile(), "rw");
+        channel = f.getChannel();
         fileLength = contentLength.orElse(0xFFFFL);
         f.setLength(fileLength);
+        writtenLength = 0;
     }
 
     @Override
@@ -61,6 +62,11 @@ public class RandomAccessFileURITask implements Closeable, URITask {
 
     @Override
     public void onFailure(Throwable cause) {
+        try {
+            close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
