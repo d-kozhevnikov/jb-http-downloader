@@ -66,10 +66,11 @@ public class DownloaderImpl implements Downloader {
 
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         synchronized (stateLock) {
             runningState = State.STOPPED;
         }
+        awaitTermination();
     }
 
     @Override
@@ -104,12 +105,7 @@ public class DownloaderImpl implements Downloader {
             changedEvent.waitFor();
         }
 
-        executor.shutdownNow();
-        try {
-            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        awaitTermination();
     }
 
     @Override
@@ -225,5 +221,14 @@ public class DownloaderImpl implements Downloader {
             idleTasks.add(task);
         activeRequests.remove(req);
         changedEvent.fire();
+    }
+
+    private void awaitTermination() {
+        executor.shutdownNow();
+        try {
+            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

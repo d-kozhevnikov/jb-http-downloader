@@ -6,7 +6,6 @@ import java.io.RandomAccessFile;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,6 +14,7 @@ import java.util.Optional;
 public class RandomAccessFileURITask implements Closeable, URITask {
 
     private final URI uri;
+
     private final Path path;
     private RandomAccessFile f;
     private FileChannel channel;
@@ -86,6 +86,10 @@ public class RandomAccessFileURITask implements Closeable, URITask {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public Path getPath() {
+        return path;
     }
 
     private void open() throws IOException {

@@ -4,43 +4,79 @@ import jb.test.*;
 
 import java.io.IOException;
 import java.net.URI;
-import java.nio.channels.FileChannel;
 import java.nio.file.*;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
-class WriteToFileTask extends InMemoryURITask {
-    private final Path path;
-    private final Downloader downloader;
+interface CLITaskOwner {
+    void processSuccess(URI uri, Path path);
+    void processError(URI uri, Path path, Throwable e);
+}
 
-    WriteToFileTask(URI uri, Path path, Downloader downloader) {
-        super(uri);
-        this.path = path;
-        this.downloader = downloader;
+class CLITask extends RandomAccessFileURITask {
+    private final CLITaskOwner owner;
+
+    CLITask(URI uri, Path path, CLITaskOwner owner) throws IOException {
+        super(uri, path);
+        this.owner = owner;
     }
 
     @Override
     public void onSuccess() {
-        super.onSuccess();
         try {
-            try (FileChannel out = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-                out.write(getResult());
-                out.force(true);
-                System.out.format("[%s] Downloaded %s to %s\n", getProgressStr(), getURI(), path);
-            }
+            super.onSuccess();
+            owner.processSuccess(getURI(), getPath());
+
         } catch (IOException e) {
-            processError(e);
+            owner.processError(getURI(), getPath(), e);
         }
     }
 
     @Override
     public void onFailure(Throwable cause) {
         super.onFailure(cause);
-        processError(cause);
+        owner.processError(getURI(), getPath(), cause);
+    }
+}
+
+public class CLI implements CLITaskOwner {
+    private Downloader downloader = null;
+
+    public static void main(String[] args) {
+        CmdLineInput input = CmdLineInput.parseCommandLine(args);
+        if (input == null) {
+            System.out.println(CmdLineInput.getUsage());
+            return;
+        }
+        new CLI().process(input);
     }
 
-    private void processError(Throwable e) {
-        System.out.format("[%s] Downloading %s to %s failed (%s)\n", getProgressStr(), getURI(), path, e);
+    private void process(CmdLineInput input) {
+        downloader = new DownloaderImpl();
+        try {
+            Collection<URITask> tasks =
+                    input.getUris().stream()
+                            .map(uriAndFile -> {
+                                try {
+                                    return new CLITask(uriAndFile.getUri(), uriAndFile.getPath(), this);
+                                } catch (IOException e) {
+                                    processError(uriAndFile.getUri(), uriAndFile.getPath(), e);
+                                    return null;
+                                }
+                            })
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList());
+
+            try {
+                downloader.run(tasks, input.getNThreads());
+            } catch (InterruptedException e) {
+                System.out.println("Interrupted");
+                Thread.currentThread().interrupt();
+            }
+        } finally {
+            downloader.close();
+        }
     }
 
     private String getProgressStr() {
@@ -54,34 +90,14 @@ class WriteToFileTask extends InMemoryURITask {
         }
         return String.format("%6sKB/%6sKB (%3s%%)", progress.getDownloaded() / 1024, totalStr, percentStr);
     }
-}
 
-public class CLI {
-
-    public static void main(String[] args) {
-        CmdLineInput input = CmdLineInput.parseCommandLine(args);
-        if (input == null) {
-            System.out.println(CmdLineInput.getUsage());
-            return;
-        }
-        new CLI().process(input);
+    @Override
+    public synchronized void processSuccess(URI uri, Path path) {
+        System.out.format("[%s] Downloaded %s to %s\n", getProgressStr(), uri, path);
     }
 
-    private void process(CmdLineInput input) {
-        try (Downloader downloader = new DownloaderImpl()) {
-            Collection<URITask> tasks =
-                    input.getUris().stream()
-                            .map(uriAndFile -> new WriteToFileTask(uriAndFile.getUri(), uriAndFile.getPath(), downloader))
-                            .collect(Collectors.toList());
-
-            try {
-                downloader.run(tasks, input.getNThreads());
-            } catch (InterruptedException e) {
-                System.out.println("Interrupted");
-                Thread.currentThread().interrupt();
-            }
-        } catch (IOException e) {
-            System.err.println("An error occurred: " + e);
-        }
+    @Override
+    public synchronized void processError(URI uri, Path path, Throwable e) {
+        System.out.format("[%s] Downloading %s to %s failed (%s)\n", getProgressStr(), uri, path, e);
     }
 }
