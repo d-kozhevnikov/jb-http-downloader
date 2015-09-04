@@ -1,5 +1,6 @@
 package jb.test;
 
+import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.Optional;
@@ -38,6 +39,11 @@ public class InMemoryURITask implements URITask {
 
     @Override
     public void onFailure(Throwable cause) {
+    }
+
+    @Override
+    public void onDiscard() throws IOException {
+        onCancel();
     }
 
     @Override

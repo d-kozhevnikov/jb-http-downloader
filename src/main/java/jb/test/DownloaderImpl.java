@@ -46,43 +46,44 @@ public class DownloaderImpl implements Downloader {
         public Future<?> future;
     }
 
+    private enum State {
+        NOT_STARTED, RUNNING, STOPPED
+    }
+
     private ThreadPoolExecutor executor;
+
+    private volatile State runningState = State.NOT_STARTED;
+    private final Object stateLock = new Object();
 
     // parts of synchronized state
     private final HashSet<FutureRequest> activeRequests = new HashSet<>();
     private final Deque<URITask> idleTasks = new ArrayDeque<>();
-    private final HashMap<URITask, ProgressData> progress = new HashMap<>();
     private int nThreads;
-    private final Event changedEvent = new Event();
-    private volatile boolean stopped = true;
 
-    public DownloaderImpl() {
-    }
+    private final HashMap<URITask, ProgressData> progress = new HashMap<>();
+
+    private final Event changedEvent = new Event();
+
 
     @Override
     public void close() throws IOException {
-        stopped = true;
-        idleTasks.clear();
-        changedEvent.fire();
-
-        if (executor != null) {
-            executor.shutdownNow();
-            try {
-                executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+        synchronized (stateLock) {
+            runningState = State.STOPPED;
         }
-        progress.clear();
-        executor = null;
     }
 
     @Override
     public void run(Collection<? extends URITask> tasks, int nThreads) throws InterruptedException {
-        stopped = false;
+        synchronized (stateLock) {
+            if (runningState != State.NOT_STARTED)
+                throw new IllegalStateException("Can only be ran once"); // todo
+            runningState = State.RUNNING;
+        }
+
         executor = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.NANOSECONDS, new LinkedBlockingDeque<>());
         this.nThreads = nThreads;
 
+        // todo: it should be tasks too
         for (URITask task : tasks) {
             ProgressData progressData = new ProgressData();
             progress.put(task, progressData);
@@ -99,11 +100,15 @@ public class DownloaderImpl implements Downloader {
             }
         }
 
-        while (true) {
-            if (!update())
-                break;
-
+        while (runningState != State.STOPPED && update()) {
             changedEvent.waitFor();
+        }
+
+        executor.shutdownNow();
+        try {
+            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -178,14 +183,20 @@ public class DownloaderImpl implements Downloader {
                 byte[] buffer = new byte[BUFFER_SIZE];
                 int bytesRead;
                 while ((bytesRead = remoteContentStream.read(buffer)) != -1) {
-                    if (Thread.interrupted()) {
+                    if (runningState != State.RUNNING) {
+                        remoteContentStream.close();
+                        progressData.resetDownloadedBytes();
+                        task.onDiscard();
+                        onTaskFinished(task, req, false);
+                        return;
+                    }
+                    else if (Thread.interrupted()) {
                         remoteContentStream.close();
                         progressData.resetDownloadedBytes();
                         task.onCancel();
                         onTaskFinished(task, req, true);
                         return;
                     }
-
                     progressData.addDownloadedBytes(bytesRead);
                     task.onChunkReceived(ByteBuffer.wrap(buffer, 0, bytesRead).asReadOnlyBuffer());
                     Thread.yield();
@@ -210,7 +221,7 @@ public class DownloaderImpl implements Downloader {
     }
 
     private synchronized void onTaskFinished(URITask task, FutureRequest req, boolean cancelled) {
-        if (cancelled && !stopped)
+        if (cancelled)
             idleTasks.add(task);
         activeRequests.remove(req);
         changedEvent.fire();

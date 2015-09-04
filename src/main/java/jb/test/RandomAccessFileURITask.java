@@ -5,7 +5,10 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -39,11 +42,8 @@ public class RandomAccessFileURITask implements Closeable, URITask {
 
     @Override
     public void onStart(Optional<Long> contentLength) throws IOException {
-        f = new RandomAccessFile(path.toFile(), "rw");
-        channel = f.getChannel();
         fileLength = contentLength.orElse(0xFFFFL);
-        f.setLength(fileLength);
-        writtenLength = 0;
+        open();
     }
 
     @Override
@@ -71,7 +71,27 @@ public class RandomAccessFileURITask implements Closeable, URITask {
 
     @Override
     public void onCancel() throws IOException {
-        channel.position(0);
+        try {
+            channel.position(0);
+        } catch (ClosedByInterruptException e) {
+            open();
+        }
+    }
+
+    @Override
+    public void onDiscard() throws IOException {
+        channel.close();
+        try {
+            Files.delete(path);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void open() throws IOException {
+        f = new RandomAccessFile(path.toFile(), "rw");
+        channel = f.getChannel();
+        f.setLength(fileLength);
         writtenLength = 0;
     }
 }

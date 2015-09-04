@@ -14,4 +14,6 @@ public interface URITask {
     void onSuccess() throws IOException;
     void onCancel() throws IOException;
     void onFailure(Throwable cause);
+
+    void onDiscard() throws IOException;
 }
