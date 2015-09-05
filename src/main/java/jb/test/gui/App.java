@@ -46,7 +46,7 @@ public class App {
 
         private Optional<Long> length = Optional.empty();
 
-        GUITask(URI uri, Path path, JProgressBar progressBar, JLabel urlLabel) throws IOException {
+        GUITask(URI uri, Path path, JProgressBar progressBar, JLabel urlLabel) {
             super(uri, path);
             this.progressBar = progressBar;
             this.urlLabel = urlLabel;
@@ -192,11 +192,7 @@ public class App {
             pb.setStringPainted(true);
             tasksPanel.add(pb, pbC);
 
-            try {
-                tasks.add(new GUITask(uri.getUri(), uri.getPath(), pb, urlLabel));
-            } catch (IOException e) {
-                pb.setString("Error: " + e);
-            }
+            tasks.add(new GUITask(uri.getUri(), uri.getPath(), pb, urlLabel));
 
             row++;
         }

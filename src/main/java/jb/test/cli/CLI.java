@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.*;
 import java.util.Collection;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 interface CLITaskOwner {
@@ -17,7 +16,7 @@ interface CLITaskOwner {
 class CLITask extends RandomAccessFileURITask {
     private final CLITaskOwner owner;
 
-    CLITask(URI uri, Path path, CLITaskOwner owner) throws IOException {
+    CLITask(URI uri, Path path, CLITaskOwner owner) {
         super(uri, path);
         this.owner = owner;
     }
@@ -57,15 +56,7 @@ public class CLI implements CLITaskOwner {
         try {
             Collection<URITask> tasks =
                     input.getUris().stream()
-                            .map(uriAndFile -> {
-                                try {
-                                    return new CLITask(uriAndFile.getUri(), uriAndFile.getPath(), this);
-                                } catch (IOException e) {
-                                    processError(uriAndFile.getUri(), uriAndFile.getPath(), e);
-                                    return null;
-                                }
-                            })
-                            .filter(Objects::nonNull)
+                            .map(uriAndFile -> new CLITask(uriAndFile.getUri(), uriAndFile.getPath(), this))
                             .collect(Collectors.toList());
 
             try {
