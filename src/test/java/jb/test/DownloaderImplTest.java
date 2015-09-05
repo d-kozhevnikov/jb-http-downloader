@@ -15,8 +15,8 @@ import static org.junit.Assert.*;
 public class DownloaderImplTest {
 
     private class SuccessCounter {
-        private int successCount = 0;
-        private int failureCount = 0;
+        private volatile int successCount = 0;
+        private volatile int failureCount = 0;
 
         public void incrementSuccess() {
             ++successCount;
@@ -76,15 +76,8 @@ public class DownloaderImplTest {
     @org.junit.Test
     public void testRun() throws Exception {
         ArrayList<URI> uris = new ArrayList<>();
-        for (int i = 0; i < 15; ++i)
+        for (int i = 0; i < 10; ++i)
             uris.add(new URI("http://vhost2.hansenet.de/1_mb_file.bin?" + i));
-//        Collection<String> uris = Arrays.asList(
-//                "http://google.com/",
-//                "http://ya.ru/",
-//                "http://jetbrains.com/",
-//                "http://yandex.ru/",
-//                "http://example.com"
-//        );
 
         try (Downloader downloader = new DownloaderImpl()) {
             SuccessCounter counter = new SuccessCounter();
