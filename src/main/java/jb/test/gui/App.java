@@ -3,7 +3,6 @@ package jb.test.gui;
 import jb.test.*;
 
 import javax.swing.*;
-import javax.swing.JOptionPane;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -100,8 +99,7 @@ public class App {
             if (indeterminate) {
                 progressBar.setMaximum(0);
                 progressBar.setValue(0);
-            }
-            else {
+            } else {
                 progressBar.setMaximum((int) (length.orElse(0L) / 1024));
                 progressBar.setValue((int) (getWrittenLength() / 1024));
             }

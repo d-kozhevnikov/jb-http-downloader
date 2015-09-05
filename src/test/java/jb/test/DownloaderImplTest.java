@@ -1,10 +1,11 @@
 package jb.test;
 
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -55,6 +56,7 @@ public class DownloaderImplTest {
                 fail();
             System.out.format("Downloaded %s\n", getURI());
         }
+
         @Override
         public void onFailure(Throwable cause) {
             super.onFailure(cause);
@@ -112,8 +114,8 @@ public class DownloaderImplTest {
     @org.junit.Test
     public void testRunFail() throws Exception {
         Collection<URI> uris = Arrays.asList(
-            new URI("http://a52accf5d22443b28ae680de498de9c6.com/"),
-            new URI("http://textfiles.com/")
+                new URI("http://a52accf5d22443b28ae680de498de9c6.com/"),
+                new URI("http://textfiles.com/")
         );
 
         try (Downloader downloader = new DownloaderImpl()) {
@@ -146,5 +148,5 @@ public class DownloaderImplTest {
             }).get();
             assertTrue(counter.getSuccessCount() == 1 && counter.getFailureCount() == 1);
         }
-   }
+    }
 }

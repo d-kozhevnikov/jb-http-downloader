@@ -9,7 +9,7 @@ public class Event {
     }
 
     public synchronized void waitFor() throws InterruptedException {
-        while(!this.signal) wait();
+        while (!this.signal) wait();
         this.signal = false;
     }
 }

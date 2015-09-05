@@ -31,7 +31,7 @@ public class CmdLineInput {
 
         List<URIAndFile> uris = new ArrayList<>();
         int nThreads = 1;
-        for (int i = 0; i < args.length;) {
+        for (int i = 0; i < args.length; ) {
             String command = args[i++];
 
             switch (command) {
@@ -80,7 +80,7 @@ public class CmdLineInput {
 
     public static String getUsage() {
         return "Usage:\n" +
-               "    -t <count> -u <URI1> <filename1> -u <URI2> <filename2>...\n" +
-               "        saves URIs to corresponding files using <count> threads (count >= 1)";
+                "    -t <count> -u <URI1> <filename1> -u <URI2> <filename2>...\n" +
+                "        saves URIs to corresponding files using <count> threads (count >= 1)";
     }
 }

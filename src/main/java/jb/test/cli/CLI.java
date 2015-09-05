@@ -4,12 +4,13 @@ import jb.test.*;
 
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.*;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
 interface CLITaskOwner {
     void processSuccess(URI uri, Path path);
+
     void processError(URI uri, Path path, Throwable e);
 }
 
@@ -77,7 +78,7 @@ public class CLI implements CLITaskOwner {
         String percentStr = "??";
         if (progress.getTotal().isPresent()) {
             totalStr = Long.toString(progress.getTotal().get() / 1024);
-            percentStr = String.format("%.0f", (double)progress.getDownloaded() / progress.getTotal().get() * 100.);
+            percentStr = String.format("%.0f", (double) progress.getDownloaded() / progress.getTotal().get() * 100.);
         }
         return String.format("%6sKB/%6sKB (%3s%%)", progress.getDownloaded() / 1024, totalStr, percentStr);
     }

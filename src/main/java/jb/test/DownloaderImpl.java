@@ -8,7 +8,10 @@ import java.net.HttpURLConnection;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 class ProgressData {
     private volatile long downloadedBytes = 0;
@@ -67,7 +70,6 @@ public class DownloaderImpl implements Downloader {
     private final HashMap<URITask, ProgressData> progress = new HashMap<>();
 
     private final Event changedEvent = new Event();
-
 
     @Override
     public void close() {
@@ -189,8 +191,7 @@ public class DownloaderImpl implements Downloader {
                         task.onDiscard();
                         onTaskFinished(task, req, false);
                         return;
-                    }
-                    else if (Thread.interrupted()) {
+                    } else if (Thread.interrupted()) {
                         remoteContentStream.close();
                         progressData.resetDownloadedBytes();
                         task.onCancel();
