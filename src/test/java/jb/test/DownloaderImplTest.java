@@ -1,11 +1,10 @@
 package jb.test;
 
+import java.io.IOException;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -36,19 +35,40 @@ public class DownloaderImplTest {
         }
     }
 
-    abstract class TestTask extends InMemoryDownloadingTask {
+    abstract class TestTask implements DownloadingTask {
         private final SuccessCounter counter;
         private final boolean ok;
+        private final URL url;
+        private ByteBuffer result;
 
         public TestTask(URL url, boolean ok, SuccessCounter counter) {
-            super(url);
+            this.url = url;
             this.ok = ok;
             this.counter = counter;
         }
 
         @Override
+        public URL getURL() {
+            return url;
+        }
+
+        @Override
+        public void onStart(Optional<Long> contentLength) {
+            result = ByteBuffer.allocate(contentLength.orElse(0xFFFFFL).intValue());
+        }
+
+        @Override
+        public void onChunkReceived(ByteBuffer chunk) {
+            if (result.remaining() < chunk.limit()) {
+                result.flip();
+                result = ByteBuffer.allocate(result.capacity() * 2).put(result);
+            }
+            result.put(chunk);
+        }
+
+        @Override
         public void onSuccess() {
-            super.onSuccess();
+            result.flip();
             counter.incrementSuccess();
             if (ok)
                 assertTrue(testOk());
@@ -58,8 +78,12 @@ public class DownloaderImplTest {
         }
 
         @Override
+        public void onDiscard() throws IOException {
+            onCancel();
+        }
+
+        @Override
         public void onFailure(Throwable cause) {
-            super.onFailure(cause);
             counter.incrementFailure();
             System.out.format("Failed %s: %s\n", getURL(), cause);
             if (ok)
@@ -68,11 +92,15 @@ public class DownloaderImplTest {
 
         @Override
         public void onCancel() {
-            super.onCancel();
+            result.clear();
             System.out.format("Cancelled %s\n", getURL());
         }
 
-        abstract boolean testOk();
+        public ByteBuffer getResult() {
+            return result;
+        }
+
+        protected abstract boolean testOk();
     }
 
     @org.junit.Test
@@ -86,7 +114,7 @@ public class DownloaderImplTest {
 
             Collection<TestTask> tasks = urls.stream().map((url) -> new TestTask(url, true, counter) {
                 @Override
-                boolean testOk() {
+                protected boolean testOk() {
                     return getResult().limit() == 1048576;
                 }
             }).collect(Collectors.toList());
@@ -125,13 +153,13 @@ public class DownloaderImplTest {
             Collection<TestTask> tasks = Arrays.asList(
                     new TestTask(it.next(), false, counter) {
                         @Override
-                        boolean testOk() {
+                        protected boolean testOk() {
                             return false;
                         }
                     },
                     new TestTask(it.next(), true, counter) {
                         @Override
-                        boolean testOk() {
+                        protected boolean testOk() {
                             String result = StandardCharsets.UTF_8.decode(getResult()).toString();
                             return result.toLowerCase().contains("</html>");
                         }

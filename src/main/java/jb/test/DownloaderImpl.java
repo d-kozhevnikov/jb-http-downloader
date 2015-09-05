@@ -231,7 +231,7 @@ public class DownloaderImpl implements Downloader {
     private void awaitTermination() {
         if (executor == null)
             return;
-        
+
         executor.shutdownNow();
         try {
             executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
