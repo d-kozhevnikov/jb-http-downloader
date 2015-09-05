@@ -1,9 +1,9 @@
 package jb.test.cli;
 
 import jb.test.CmdLineInput;
-import jb.test.URIAndFile;
+import jb.test.URLAndFile;
 
-import java.net.URI;
+import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -33,9 +33,9 @@ public class CmdLineInputTest {
     }
 
     @org.junit.Test
-    public void testParseCommandLineUris() throws Exception {
-        String[] invalidUri = {"-u", "invalid|uri", "file"};
-        assertNull(CmdLineInput.parseCommandLine(invalidUri));
+    public void testParseCommandLineURLs() throws Exception {
+        String[] invalidURL = {"-u", "invalid|url", "file"};
+        assertNull(CmdLineInput.parseCommandLine(invalidURL));
 
         String[] noFile = {"-u", "http://jetbrains.com/"};
         assertNull(CmdLineInput.parseCommandLine(noFile));
@@ -58,18 +58,18 @@ public class CmdLineInputTest {
 
         assertEquals(result.getNThreads(), 3);
 
-        assertEquals(result.getUris().size(), 2);
+        assertEquals(result.getURLs().size(), 2);
 
-        List<URI> expectedURIs = Arrays.asList(new URI("http://jetbrains.com/"), new URI("https://www.jetbrains.com/clion/"));
+        List<URL> expectedURLs = Arrays.asList(new URL("http://jetbrains.com/"), new URL("https://www.jetbrains.com/clion/"));
         List<Path> expectedPaths = Arrays.asList(Paths.get("ok"), Paths.get("okok"));
-        Iterator<URIAndFile> itResult = result.getUris().iterator();
-        Iterator<URI> itURIs = expectedURIs.iterator();
+        Iterator<URLAndFile> itResult = result.getURLs().iterator();
+        Iterator<URL> itURLs = expectedURLs.iterator();
         Iterator<Path> itPaths = expectedPaths.iterator();
 
-        while (itResult.hasNext() && itURIs.hasNext() && itPaths.hasNext()) {
-            URIAndFile res = itResult.next();
+        while (itResult.hasNext() && itURLs.hasNext() && itPaths.hasNext()) {
+            URLAndFile res = itResult.next();
             assertEquals(res.getPath(), itPaths.next());
-            assertEquals(res.getUri(), itURIs.next());
+            assertEquals(res.getURL(), itURLs.next());
         }
     }
 }

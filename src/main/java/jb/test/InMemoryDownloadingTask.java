@@ -1,21 +1,22 @@
 package jb.test;
 
 import java.io.IOException;
-import java.net.URI;
+import java.net.URL;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 
 public class InMemoryDownloadingTask implements DownloadingTask {
-    private final URI uri;
+    private final URL url;
     private ByteBuffer result;
 
-    public InMemoryDownloadingTask(URI uri) {
-        this.uri = uri;
+    public InMemoryDownloadingTask(URL url) {
+        this.url = url;
     }
 
     @Override
-    public URI getURI() {
-        return uri;
+    public URL getURL() {
+        return url;
     }
 
     @Override

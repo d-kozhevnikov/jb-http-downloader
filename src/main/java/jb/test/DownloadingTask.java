@@ -1,12 +1,13 @@
 package jb.test;
 
 import java.io.IOException;
-import java.net.URI;
+import java.net.URL;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 
 public interface DownloadingTask {
-    URI getURI();
+    URL getURL();
 
     void onStart(Optional<Long> contentLength) throws IOException;
 

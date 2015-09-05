@@ -7,7 +7,7 @@ import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
-import java.net.URI;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -45,8 +45,8 @@ public class App {
 
         private Optional<Long> length = Optional.empty();
 
-        GUITask(URI uri, Path path, JProgressBar progressBar, JLabel urlLabel) {
-            super(uri, path);
+        GUITask(URL url, Path path, JProgressBar progressBar, JLabel urlLabel) {
+            super(url, path);
             this.progressBar = progressBar;
             this.urlLabel = urlLabel;
         }
@@ -167,20 +167,20 @@ public class App {
 
         ArrayList<GUITask> tasks = new ArrayList<>();
         int row = 1;
-        for (URIAndFile uri : input.getUris()) {
+        for (URLAndFile url : input.getURLs()) {
 
-            GridBagConstraints uriC = new GridBagConstraints();
-            uriC.gridx = 0;
-            uriC.gridy = row;
-            uriC.ipadx = 6;
-            JLabel urlLabel = new JLabel(uri.getUri().toString());
-            tasksPanel.add(urlLabel, uriC);
+            GridBagConstraints urlC = new GridBagConstraints();
+            urlC.gridx = 0;
+            urlC.gridy = row;
+            urlC.ipadx = 6;
+            JLabel urlLabel = new JLabel(url.getURL().toString());
+            tasksPanel.add(urlLabel, urlC);
 
             GridBagConstraints pathC = new GridBagConstraints();
             pathC.gridx = 1;
             pathC.gridy = row;
-            uriC.ipadx = 6;
-            tasksPanel.add(new JLabel(uri.getPath().toString()), pathC);
+            urlC.ipadx = 6;
+            tasksPanel.add(new JLabel(url.getPath().toString()), pathC);
 
             GridBagConstraints pbC = new GridBagConstraints();
             pbC.gridx = 2;
@@ -190,7 +190,7 @@ public class App {
             pb.setStringPainted(true);
             tasksPanel.add(pb, pbC);
 
-            tasks.add(new GUITask(uri.getUri(), uri.getPath(), pb, urlLabel));
+            tasks.add(new GUITask(url.getURL(), url.getPath(), pb, urlLabel));
 
             row++;
         }

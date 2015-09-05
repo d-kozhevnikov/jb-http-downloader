@@ -3,7 +3,7 @@ package jb.test;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.net.URI;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
@@ -13,7 +13,7 @@ import java.util.Optional;
 
 public class RandomAccessFileDownloadingTask implements Closeable, DownloadingTask {
 
-    private final URI uri;
+    private final URL url;
 
     private final Path path;
     private RandomAccessFile f;
@@ -21,8 +21,8 @@ public class RandomAccessFileDownloadingTask implements Closeable, DownloadingTa
     private long fileLength = 0L;
     private long writtenLength = 0L;
 
-    public RandomAccessFileDownloadingTask(URI uri, Path path) {
-        this.uri = uri;
+    public RandomAccessFileDownloadingTask(URL url, Path path) {
+        this.url = url;
         this.path = path;
     }
 
@@ -36,8 +36,8 @@ public class RandomAccessFileDownloadingTask implements Closeable, DownloadingTa
     }
 
     @Override
-    public URI getURI() {
-        return uri;
+    public URL getURL() {
+        return url;
     }
 
     @Override

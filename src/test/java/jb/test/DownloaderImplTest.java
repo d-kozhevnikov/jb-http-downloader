@@ -1,6 +1,6 @@
 package jb.test;
 
-import java.net.URI;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,8 +40,8 @@ public class DownloaderImplTest {
         private final SuccessCounter counter;
         private final boolean ok;
 
-        public TestTask(URI uri, boolean ok, SuccessCounter counter) {
-            super(uri);
+        public TestTask(URL url, boolean ok, SuccessCounter counter) {
+            super(url);
             this.ok = ok;
             this.counter = counter;
         }
@@ -54,14 +54,14 @@ public class DownloaderImplTest {
                 assertTrue(testOk());
             else
                 fail();
-            System.out.format("Downloaded %s\n", getURI());
+            System.out.format("Downloaded %s\n", getURL());
         }
 
         @Override
         public void onFailure(Throwable cause) {
             super.onFailure(cause);
             counter.incrementFailure();
-            System.out.format("Failed %s: %s\n", getURI(), cause);
+            System.out.format("Failed %s: %s\n", getURL(), cause);
             if (ok)
                 fail();
         }
@@ -69,7 +69,7 @@ public class DownloaderImplTest {
         @Override
         public void onCancel() {
             super.onCancel();
-            System.out.format("Cancelled %s\n", getURI());
+            System.out.format("Cancelled %s\n", getURL());
         }
 
         abstract boolean testOk();
@@ -77,14 +77,14 @@ public class DownloaderImplTest {
 
     @org.junit.Test
     public void testRun() throws Exception {
-        ArrayList<URI> uris = new ArrayList<>();
+        ArrayList<URL> urls = new ArrayList<>();
         for (int i = 0; i < 10; ++i)
-            uris.add(new URI("http://vhost2.hansenet.de/1_mb_file.bin?" + i));
+            urls.add(new URL("http://vhost2.hansenet.de/1_mb_file.bin?" + i));
 
         try (Downloader downloader = new DownloaderImpl()) {
             SuccessCounter counter = new SuccessCounter();
 
-            Collection<TestTask> tasks = uris.stream().map((uri) -> new TestTask(uri, true, counter) {
+            Collection<TestTask> tasks = urls.stream().map((url) -> new TestTask(url, true, counter) {
                 @Override
                 boolean testOk() {
                     return getResult().limit() == 1048576;
@@ -107,21 +107,21 @@ public class DownloaderImplTest {
             downloader.setThreadsCount(3);
             f.get();
 
-            assertTrue(counter.getSuccessCount() == uris.size() && counter.getFailureCount() == 0);
+            assertTrue(counter.getSuccessCount() == urls.size() && counter.getFailureCount() == 0);
         }
     }
 
     @org.junit.Test
     public void testRunFail() throws Exception {
-        Collection<URI> uris = Arrays.asList(
-                new URI("http://a52accf5d22443b28ae680de498de9c6.com/"),
-                new URI("http://textfiles.com/")
+        Collection<URL> urls = Arrays.asList(
+                new URL("http://a52accf5d22443b28ae680de498de9c6.com/"),
+                new URL("http://textfiles.com/")
         );
 
         try (Downloader downloader = new DownloaderImpl()) {
             SuccessCounter counter = new SuccessCounter();
 
-            Iterator<URI> it = uris.iterator();
+            Iterator<URL> it = urls.iterator();
             Collection<TestTask> tasks = Arrays.asList(
                     new TestTask(it.next(), false, counter) {
                         @Override

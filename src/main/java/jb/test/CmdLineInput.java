@@ -1,7 +1,7 @@
 package jb.test;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -9,16 +9,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CmdLineInput {
-    private final List<URIAndFile> uris;
+    private final List<URLAndFile> urls;
     private final int nThreads;
 
-    CmdLineInput(List<URIAndFile> uris, int nThreads) {
-        this.uris = uris;
+    CmdLineInput(List<URLAndFile> urls, int nThreads) {
+        this.urls = urls;
         this.nThreads = nThreads;
     }
 
-    public List<URIAndFile> getUris() {
-        return uris;
+    public List<URLAndFile> getURLs() {
+        return urls;
     }
 
     public int getNThreads() {
@@ -29,7 +29,7 @@ public class CmdLineInput {
         if (args.length < 3)
             return null;
 
-        List<URIAndFile> uris = new ArrayList<>();
+        List<URLAndFile> urls = new ArrayList<>();
         int nThreads = 1;
         for (int i = 0; i < args.length; ) {
             String command = args[i++];
@@ -39,12 +39,12 @@ public class CmdLineInput {
                     if (i >= args.length - 1)
                         return null;
 
-                    String uriStr = args[i++];
+                    String urlStr = args[i++];
                     String filename = args[i++];
-                    URI uri;
+                    URL url;
                     try {
-                        uri = new URI(uriStr);
-                    } catch (URISyntaxException e) {
+                        url = new URL(urlStr);
+                    } catch (MalformedURLException e) {
                         return null;
                     }
 
@@ -55,7 +55,7 @@ public class CmdLineInput {
                         return null;
                     }
 
-                    uris.add(new URIAndFile(uri, path));
+                    urls.add(new URLAndFile(url, path));
                     break;
                 case "-t":
                     if (i >= args.length)
@@ -75,12 +75,12 @@ public class CmdLineInput {
             }
         }
 
-        return new CmdLineInput(uris, nThreads);
+        return new CmdLineInput(urls, nThreads);
     }
 
     public static String getUsage() {
         return "Usage:\n" +
-                "    -t <count> -u <URI1> <filename1> -u <URI2> <filename2>...\n" +
-                "        saves URIs to corresponding files using <count> threads (count >= 1)";
+                "    -t <count> -u <URL1> <filename1> -u <URL2> <filename2>...\n" +
+                "        saves URLs to corresponding files using <count> threads (count >= 1)";
     }
 }

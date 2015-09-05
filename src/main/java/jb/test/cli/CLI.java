@@ -3,22 +3,22 @@ package jb.test.cli;
 import jb.test.*;
 
 import java.io.IOException;
-import java.net.URI;
+import java.net.URL;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
 interface CLITaskOwner {
-    void processSuccess(URI uri, Path path);
+    void processSuccess(URL url, Path path);
 
-    void processError(URI uri, Path path, Throwable e);
+    void processError(URL url, Path path, Throwable e);
 }
 
 class CLITask extends RandomAccessFileDownloadingTask {
     private final CLITaskOwner owner;
 
-    CLITask(URI uri, Path path, CLITaskOwner owner) {
-        super(uri, path);
+    CLITask(URL url, Path path, CLITaskOwner owner) {
+        super(url, path);
         this.owner = owner;
     }
 
@@ -26,17 +26,17 @@ class CLITask extends RandomAccessFileDownloadingTask {
     public void onSuccess() {
         try {
             super.onSuccess();
-            owner.processSuccess(getURI(), getPath());
+            owner.processSuccess(getURL(), getPath());
 
         } catch (IOException e) {
-            owner.processError(getURI(), getPath(), e);
+            owner.processError(getURL(), getPath(), e);
         }
     }
 
     @Override
     public void onFailure(Throwable cause) {
         super.onFailure(cause);
-        owner.processError(getURI(), getPath(), cause);
+        owner.processError(getURL(), getPath(), cause);
     }
 }
 
@@ -56,8 +56,8 @@ public class CLI implements CLITaskOwner {
         downloader = new DownloaderImpl();
         try {
             Collection<DownloadingTask> tasks =
-                    input.getUris().stream()
-                            .map(uriAndFile -> new CLITask(uriAndFile.getUri(), uriAndFile.getPath(), this))
+                    input.getURLs().stream()
+                            .map(urlAndFile -> new CLITask(urlAndFile.getURL(), urlAndFile.getPath(), this))
                             .collect(Collectors.toList());
 
             try {
@@ -84,12 +84,12 @@ public class CLI implements CLITaskOwner {
     }
 
     @Override
-    public synchronized void processSuccess(URI uri, Path path) {
-        System.out.format("[%s] Downloaded %s to %s\n", getProgressStr(), uri, path);
+    public synchronized void processSuccess(URL url, Path path) {
+        System.out.format("[%s] Downloaded %s to %s\n", getProgressStr(), url, path);
     }
 
     @Override
-    public synchronized void processError(URI uri, Path path, Throwable e) {
-        System.out.format("[%s] Downloading %s to %s failed (%s)\n", getProgressStr(), uri, path, e);
+    public synchronized void processError(URL url, Path path, Throwable e) {
+        System.out.format("[%s] Downloading %s to %s failed (%s)\n", getProgressStr(), url, path, e);
     }
 }

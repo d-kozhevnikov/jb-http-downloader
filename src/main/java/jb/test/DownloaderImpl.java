@@ -95,7 +95,7 @@ public class DownloaderImpl implements Downloader {
             ProgressData progressData = new ProgressData();
             progress.put(task, progressData);
             try {
-                HttpURLConnection conn = (HttpURLConnection) task.getURI().toURL().openConnection();
+                HttpURLConnection conn = (HttpURLConnection) task.getURL().openConnection();
                 conn.setRequestMethod("HEAD");
                 long length = conn.getContentLengthLong();
                 if (length >= 0)
@@ -171,7 +171,7 @@ public class DownloaderImpl implements Downloader {
         ProgressData progressData = progress.get(task);
         req.future = executor.submit(() -> {
             try {
-                URLConnection conn = task.getURI().toURL().openConnection();
+                URLConnection conn = task.getURL().openConnection();
 
                 long length = conn.getContentLengthLong();
                 Optional<Long> lengthOpt = Optional.empty();
