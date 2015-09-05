@@ -147,8 +147,6 @@ public class App {
                     downloader.close();
                     executor.shutdown();
                     executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-                } catch (IOException e1) {
-                    e1.printStackTrace();
                 } catch (InterruptedException e1) {
                     Thread.currentThread().interrupt();
                 }
@@ -203,13 +201,7 @@ public class App {
                         }
                 ));
 
-        stopButton.addActionListener(e -> {
-            try {
-                downloader.close();
-            } catch (IOException error) {
-                error.printStackTrace();
-            }
-        });
+        stopButton.addActionListener(e -> downloader.close());
 
         frame.pack();
         frame.setVisible(true);
