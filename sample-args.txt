@@ -1,0 +1,19 @@
+-t 3
+-u http://jetbrains.com/ out/0.html
+-u https://upload.wikimedia.org/wikipedia/commons/8/88/Syrian_civil_war.png out/1.png
+-u https://upload.wikimedia.org/wikipedia/commons/3/36/Hopetoun_falls.jpg out/5.jpg
+-u http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2013/n3690.pdf out/6.pdf
+-u http://www.oracle.com/technetwork/java/newtojava/java8book-2172125.pdf out/7.pdf
+-u https://notepad-plus-plus.org/repository/6.x/6.8.3/npp.6.8.3.Installer.exe out/8.exe
+-u http://vhost2.hansenet.de/1_mb_file.bin out/9.bin
+-u http://vhost2.hansenet.de/1_mb_file.bin out/10.bin
+-u http://vhost2.hansenet.de/1_mb_file.bin out/11.bin
+-u http://vhost2.hansenet.de/1_mb_file.bin out/12.bin
+-u http://vhost2.hansenet.de/1_mb_file.bin out/13.bin
+-u http://vhost2.hansenet.de/1_mb_file.bin out/14.bin
+-u http://vhost2.hansenet.de/1_mb_file.bin out/15.bin
+-u http://vhost2.hansenet.de/1_mb_file.bin out/16.bin
+-u http://vhost2.hansenet.de/1_mb_file.bin out/17.bin
+
+
+
