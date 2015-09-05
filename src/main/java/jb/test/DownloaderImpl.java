@@ -4,6 +4,7 @@ import jb.test.util.Event;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -92,11 +93,11 @@ public class DownloaderImpl implements Downloader {
             ProgressData progressData = new ProgressData();
             progress.put(task, progressData);
             try {
-                URLConnection conn = task.getURI().toURL().openConnection();
+                HttpURLConnection conn = (HttpURLConnection) task.getURI().toURL().openConnection();
+                conn.setRequestMethod("HEAD");
                 long length = conn.getContentLengthLong();
                 if (length >= 0)
                     progressData.setTotalBytes(length);
-
 
                 idleTasks.add(task);
             } catch (IOException e) {
