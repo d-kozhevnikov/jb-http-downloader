@@ -50,7 +50,7 @@ public class CmdLineInput {
 
                     Path path;
                     try {
-                        path = Paths.get(filename);
+                        path = Paths.get(filename).normalize();
                     } catch (InvalidPathException e) {
                         return null;
                     }

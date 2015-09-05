@@ -2,6 +2,7 @@ package jb.test.cli;
 
 import jb.test.CmdLineInput;
 import jb.test.URLAndFile;
+import org.junit.Test;
 
 import java.net.URL;
 import java.nio.file.Path;
@@ -22,13 +23,13 @@ public class CmdLineInputTest {
 
     @org.junit.Test
     public void testParseCommandLineInvalidThreads() throws Exception {
-        String[] noCount = {"-t"};
+        String[] noCount = {"-u", "http://jetbrains.com/", "ok", "-t"};
         assertNull(CmdLineInput.parseCommandLine(noCount));
 
-        String[] notInteger = {"-t", "hi"};
+        String[] notInteger = {"-u", "http://jetbrains.com/", "ok", "-t", "hi"};
         assertNull(CmdLineInput.parseCommandLine(notInteger));
 
-        String[] zero = {"-t", "0"};
+        String[] zero = {"-u", "http://jetbrains.com/", "ok", "-t", "0"};
         assertNull(CmdLineInput.parseCommandLine(zero));
     }
 
@@ -42,6 +43,9 @@ public class CmdLineInputTest {
 
         String[] noFile2 = {"-u", "http://jetbrains.com/", "ok", "-u", "http://eclipse.org/"};
         assertNull(CmdLineInput.parseCommandLine(noFile2));
+
+        String[] malformedPath = {"-u", "http://eclipse.org/", "fail:\u0000"};
+        assertNull(CmdLineInput.parseCommandLine(malformedPath));
 
         String[] tooManyArguments = {"-u", "http://eclipse.org/", "fail", "fail"};
         assertNull(CmdLineInput.parseCommandLine(tooManyArguments));
@@ -71,5 +75,10 @@ public class CmdLineInputTest {
             assertEquals(res.getPath(), itPaths.next());
             assertEquals(res.getURL(), itURLs.next());
         }
+    }
+
+    @Test
+    public void testGetUsage() throws Exception {
+        assertTrue(!CmdLineInput.getUsage().isEmpty());
     }
 }

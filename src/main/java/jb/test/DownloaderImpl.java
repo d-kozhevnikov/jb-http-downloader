@@ -6,44 +6,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URLConnection;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-
-class ProgressData {
-    private volatile long downloadedBytes = 0;
-    private volatile Optional<Long> totalBytes = Optional.empty();
-
-    public long getDownloadedBytes() {
-        return downloadedBytes;
-    }
-
-    public Optional<Long> getTotalBytes() {
-        return totalBytes;
-    }
-
-    public void addDownloadedBytes(long add) {
-        if (add < 0 || (totalBytes.isPresent() && totalBytes.get() < downloadedBytes + add))
-            throw new IllegalArgumentException();
-
-        downloadedBytes += add;
-    }
-
-    public void resetDownloadedBytes() {
-        downloadedBytes = 0;
-    }
-
-    public void setTotalBytes(long val) {
-        if (val < downloadedBytes)
-            throw new IllegalArgumentException();
-
-        totalBytes = Optional.of(val);
-    }
-}
-
 
 public class DownloaderImpl implements Downloader {
 
@@ -97,6 +66,9 @@ public class DownloaderImpl implements Downloader {
             try {
                 HttpURLConnection conn = (HttpURLConnection) task.getURL().openConnection();
                 conn.setRequestMethod("HEAD");
+                int respCode = conn.getResponseCode();
+                if (respCode / 100 != 2)
+                    throw new IOException(String.format("Can't reach %s (HTTP response code %d)", task.getURL(), respCode));
                 long length = conn.getContentLengthLong();
                 if (length >= 0)
                     progressData.setTotalBytes(length);
@@ -164,53 +136,55 @@ public class DownloaderImpl implements Downloader {
         return true;
     }
 
+    private void processTask(DownloadingTask task, ProgressData progressData, FutureRequest req) {
+        try {
+            URLConnection conn = task.getURL().openConnection();
+
+            long length = conn.getContentLengthLong();
+            Optional<Long> lengthOpt = Optional.empty();
+            if (length >= 0) {
+                progressData.setTotalBytes(length);
+                lengthOpt = Optional.of(length);
+            }
+            task.onStart(lengthOpt);
+
+            InputStream remoteContentStream = conn.getInputStream();
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int bytesRead;
+            while ((bytesRead = remoteContentStream.read(buffer)) != -1) {
+                if (runningState != State.RUNNING) {
+                    remoteContentStream.close();
+                    progressData.resetDownloadedBytes();
+                    task.onDiscard();
+                    onTaskFinished(task, req, false);
+                    return;
+                } else if (Thread.interrupted()) {
+                    remoteContentStream.close();
+                    progressData.resetDownloadedBytes();
+                    task.onCancel();
+                    onTaskFinished(task, req, true);
+                    return;
+                }
+                progressData.addDownloadedBytes(bytesRead);
+                task.onChunkReceived(ByteBuffer.wrap(buffer, 0, bytesRead).asReadOnlyBuffer());
+                Thread.yield();
+            }
+
+            progressData.setTotalBytes(progressData.getDownloadedBytes());
+            task.onSuccess();
+            onTaskFinished(task, req, false);
+        } catch (IOException e) {
+            task.onFailure(e);
+            onTaskFinished(task, req, false);
+        }
+    }
+
     private void addRequest(DownloadingTask task) {
         FutureRequest req = new FutureRequest();
         activeRequests.add(req);
 
         ProgressData progressData = progress.get(task);
-        req.future = executor.submit(() -> {
-            try {
-                URLConnection conn = task.getURL().openConnection();
-
-                long length = conn.getContentLengthLong();
-                Optional<Long> lengthOpt = Optional.empty();
-                if (length >= 0) {
-                    progressData.setTotalBytes(length);
-                    lengthOpt = Optional.of(length);
-                }
-                task.onStart(lengthOpt);
-
-                InputStream remoteContentStream = conn.getInputStream();
-                byte[] buffer = new byte[BUFFER_SIZE];
-                int bytesRead;
-                while ((bytesRead = remoteContentStream.read(buffer)) != -1) {
-                    if (runningState != State.RUNNING) {
-                        remoteContentStream.close();
-                        progressData.resetDownloadedBytes();
-                        task.onDiscard();
-                        onTaskFinished(task, req, false);
-                        return;
-                    } else if (Thread.interrupted()) {
-                        remoteContentStream.close();
-                        progressData.resetDownloadedBytes();
-                        task.onCancel();
-                        onTaskFinished(task, req, true);
-                        return;
-                    }
-                    progressData.addDownloadedBytes(bytesRead);
-                    task.onChunkReceived(ByteBuffer.wrap(buffer, 0, bytesRead).asReadOnlyBuffer());
-                    Thread.yield();
-                }
-
-                progressData.setTotalBytes(progressData.getDownloadedBytes());
-                task.onSuccess();
-                onTaskFinished(task, req, false);
-            } catch (IOException e) {
-                task.onFailure(e);
-                onTaskFinished(task, req, false);
-            }
-        });
+        req.future = executor.submit(() -> processTask(task, progressData, req));
     }
 
     private void cancelRequest() {

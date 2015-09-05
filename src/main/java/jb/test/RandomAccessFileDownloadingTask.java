@@ -26,13 +26,17 @@ public class RandomAccessFileDownloadingTask implements Closeable, DownloadingTa
         this.path = path;
     }
 
+    public long getFileLength() {
+        return fileLength;
+    }
     public long getWrittenLength() {
         return writtenLength;
     }
 
     @Override
     public void close() throws IOException {
-        f.close();
+        if (f != null)
+            f.close();
     }
 
     @Override
@@ -57,6 +61,8 @@ public class RandomAccessFileDownloadingTask implements Closeable, DownloadingTa
 
     @Override
     public void onSuccess() throws IOException {
+        fileLength = writtenLength;
+        f.setLength(fileLength);
         close();
     }
 
@@ -73,6 +79,7 @@ public class RandomAccessFileDownloadingTask implements Closeable, DownloadingTa
     public void onCancel() throws IOException {
         try {
             channel.position(0);
+            writtenLength = 0;
         } catch (ClosedByInterruptException e) {
             open();
         }
