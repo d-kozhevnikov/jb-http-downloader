@@ -22,18 +22,21 @@ class ProgressData {
     }
 
     public void addDownloadedBytes(long add) {
+        if (add < 0 || (totalBytes.isPresent() && totalBytes.get() < downloadedBytes + add))
+            throw new IllegalArgumentException();
+
         downloadedBytes += add;
-        assert !totalBytes.isPresent() || totalBytes.get() >= downloadedBytes;
     }
 
     public void resetDownloadedBytes() {
         downloadedBytes = 0;
-        assert !totalBytes.isPresent() || totalBytes.get() >= downloadedBytes;
     }
 
     public void setTotalBytes(long val) {
+        if (val < downloadedBytes)
+            throw new IllegalArgumentException();
+
         totalBytes = Optional.of(val);
-        assert totalBytes.get() >= downloadedBytes;
     }
 }
 
