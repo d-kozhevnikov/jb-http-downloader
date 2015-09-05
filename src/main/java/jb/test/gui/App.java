@@ -39,7 +39,7 @@ public class App {
         return String.format("%s (%s%%)", bytesStr, percentStr);
     }
 
-    private class GUITask extends RandomAccessFileURITask {
+    private class GUITask extends RandomAccessFileDownloadingTask {
         private final JProgressBar progressBar;
         private final JLabel urlLabel;
 

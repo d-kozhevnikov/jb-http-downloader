@@ -36,7 +36,7 @@ public class DownloaderImplTest {
         }
     }
 
-    abstract class TestTask extends InMemoryURITask {
+    abstract class TestTask extends InMemoryDownloadingTask {
         private final SuccessCounter counter;
         private final boolean ok;
 

@@ -5,7 +5,7 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 
-public interface URITask {
+public interface DownloadingTask {
     URI getURI();
 
     void onStart(Optional<Long> contentLength) throws IOException;

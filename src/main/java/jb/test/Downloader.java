@@ -4,7 +4,7 @@ import java.io.Closeable;
 import java.util.Collection;
 
 public interface Downloader extends Closeable {
-    void run(Collection<? extends URITask> tasks, int nThreads) throws InterruptedException;
+    void run(Collection<? extends DownloadingTask> tasks, int nThreads) throws InterruptedException;
 
     Progress getProgress();
 

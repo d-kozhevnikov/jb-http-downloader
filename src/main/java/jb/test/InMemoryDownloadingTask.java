@@ -5,11 +5,11 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 
-public class InMemoryURITask implements URITask {
+public class InMemoryDownloadingTask implements DownloadingTask {
     private final URI uri;
     private ByteBuffer result;
 
-    public InMemoryURITask(URI uri) {
+    public InMemoryDownloadingTask(URI uri) {
         this.uri = uri;
     }
 

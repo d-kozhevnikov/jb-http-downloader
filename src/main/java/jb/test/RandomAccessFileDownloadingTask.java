@@ -11,7 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 
-public class RandomAccessFileURITask implements Closeable, URITask {
+public class RandomAccessFileDownloadingTask implements Closeable, DownloadingTask {
 
     private final URI uri;
 
@@ -21,7 +21,7 @@ public class RandomAccessFileURITask implements Closeable, URITask {
     private long fileLength = 0L;
     private long writtenLength = 0L;
 
-    public RandomAccessFileURITask(URI uri, Path path) {
+    public RandomAccessFileDownloadingTask(URI uri, Path path) {
         this.uri = uri;
         this.path = path;
     }

@@ -14,7 +14,7 @@ interface CLITaskOwner {
     void processError(URI uri, Path path, Throwable e);
 }
 
-class CLITask extends RandomAccessFileURITask {
+class CLITask extends RandomAccessFileDownloadingTask {
     private final CLITaskOwner owner;
 
     CLITask(URI uri, Path path, CLITaskOwner owner) {
@@ -55,7 +55,7 @@ public class CLI implements CLITaskOwner {
     private void process(CmdLineInput input) {
         downloader = new DownloaderImpl();
         try {
-            Collection<URITask> tasks =
+            Collection<DownloadingTask> tasks =
                     input.getUris().stream()
                             .map(uriAndFile -> new CLITask(uriAndFile.getUri(), uriAndFile.getPath(), this))
                             .collect(Collectors.toList());

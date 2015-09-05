@@ -64,10 +64,10 @@ public class DownloaderImpl implements Downloader {
 
     // parts of synchronized state
     private final HashSet<FutureRequest> activeRequests = new HashSet<>();
-    private final Deque<URITask> idleTasks = new ArrayDeque<>();
+    private final Deque<DownloadingTask> idleTasks = new ArrayDeque<>();
     private int nThreads;
 
-    private final HashMap<URITask, ProgressData> progress = new HashMap<>();
+    private final HashMap<DownloadingTask, ProgressData> progress = new HashMap<>();
 
     private final Event changedEvent = new Event();
 
@@ -80,7 +80,7 @@ public class DownloaderImpl implements Downloader {
     }
 
     @Override
-    public void run(Collection<? extends URITask> tasks, int nThreads) throws InterruptedException {
+    public void run(Collection<? extends DownloadingTask> tasks, int nThreads) throws InterruptedException {
         synchronized (stateLock) {
             if (runningState != State.NOT_STARTED)
                 throw new IllegalStateException("Can only be ran once"); // todo
@@ -91,7 +91,7 @@ public class DownloaderImpl implements Downloader {
         this.nThreads = nThreads;
 
         // todo: it should be tasks too
-        for (URITask task : tasks) {
+        for (DownloadingTask task : tasks) {
             ProgressData progressData = new ProgressData();
             progress.put(task, progressData);
             try {
@@ -157,14 +157,14 @@ public class DownloaderImpl implements Downloader {
             cancelRequest();
 
         while (activeRequests.size() < nThreads && !idleTasks.isEmpty()) {
-            URITask nextTask = idleTasks.remove();
+            DownloadingTask nextTask = idleTasks.remove();
             addRequest(nextTask);
         }
 
         return true;
     }
 
-    private void addRequest(URITask task) {
+    private void addRequest(DownloadingTask task) {
         FutureRequest req = new FutureRequest();
         activeRequests.add(req);
 
@@ -221,7 +221,7 @@ public class DownloaderImpl implements Downloader {
         activeRequests.remove(res);
     }
 
-    private synchronized void onTaskFinished(URITask task, FutureRequest req, boolean cancelled) {
+    private synchronized void onTaskFinished(DownloadingTask task, FutureRequest req, boolean cancelled) {
         if (cancelled)
             idleTasks.add(task);
         activeRequests.remove(req);
