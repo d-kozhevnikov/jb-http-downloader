@@ -70,6 +70,7 @@ public class RandomAccessFileDownloadingTask implements Closeable, DownloadingTa
     public void onFailure(Throwable cause) {
         try {
             close();
+            Files.delete(path);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -87,12 +88,8 @@ public class RandomAccessFileDownloadingTask implements Closeable, DownloadingTa
 
     @Override
     public void onDiscard() throws IOException {
-        channel.close();
-        try {
-            Files.delete(path);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        close();
+        Files.delete(path);
     }
 
     public Path getPath() {
