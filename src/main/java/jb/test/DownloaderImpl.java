@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URLConnection;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Future;
@@ -44,8 +43,8 @@ public class DownloaderImpl implements Downloader {
     public void close() {
         synchronized (stateLock) {
             runningState = State.STOPPED;
+            awaitTermination();
         }
-        awaitTermination();
     }
 
     @Override
@@ -83,7 +82,9 @@ public class DownloaderImpl implements Downloader {
             changedEvent.waitFor();
         }
 
-        awaitTermination();
+        synchronized (stateLock) {
+            awaitTermination();
+        }
     }
 
     @Override
@@ -202,7 +203,7 @@ public class DownloaderImpl implements Downloader {
         changedEvent.fire();
     }
 
-    private void awaitTermination() {
+    private void awaitTermination() { // fixme: throw InterruptedException
         if (executor == null)
             return;
 
