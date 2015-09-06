@@ -248,6 +248,17 @@ public class DownloaderImplTest {
                     }
 
                     @Override
+                    public void onChunkReceived(ByteBuffer chunk) {
+                        try {
+                            sem2.acquire();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        super.onChunkReceived(chunk);
+                    }
+
+
+                    @Override
                     public void onDiscard() throws IOException {
                         discarded.set(true);
                         super.onDiscard();
@@ -263,6 +274,7 @@ public class DownloaderImplTest {
         });
         sem1.acquire();
         downloader.close();
+        sem2.release();
         assertTrue(discarded.get());
     }
 }
