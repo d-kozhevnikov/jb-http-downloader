@@ -15,10 +15,11 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class App {
 
-    private final Downloader downloader = new DownloaderImpl();
+    private Downloader downloader = null;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private JPanel rootPanel;
@@ -49,6 +50,7 @@ public class App {
             super(url, path);
             this.progressBar = progressBar;
             this.urlLabel = urlLabel;
+            updateProgressBar(false, null);
         }
 
         @Override
@@ -129,16 +131,42 @@ public class App {
     }
 
     private void updateTotalProgressBar() {
-        Progress p = downloader.getProgress();
-        if (p.getTotal().isPresent()) {
-            totalProgress.setMaximum((int) (p.getTotal().get() / 1024));
-            totalProgress.setValue((int) (p.getDownloaded() / 1024));
-        } else {
-            totalProgress.setMaximum(0);
-            totalProgress.setValue(0);
-        }
+        if (downloader != null) {
+            Progress p = downloader.getProgress();
+            if (p.getTotal().isPresent()) {
+                totalProgress.setMaximum((int) (p.getTotal().get() / 1024));
+                totalProgress.setValue((int) (p.getDownloaded() / 1024));
+            } else {
+                totalProgress.setMaximum(0);
+                totalProgress.setValue(0);
+            }
 
-        totalProgress.setString(getProgressString(p.getDownloaded(), p.getTotal()));
+            totalProgress.setString(getProgressString(p.getDownloaded(), p.getTotal()));
+        }
+    }
+
+    private void stop() {
+        if (downloader != null)
+            downloader.close();
+
+        try {
+            executor.shutdown();
+            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e1) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private class ControlsForURL {
+        public final URLAndFile url;
+        public final JProgressBar progressBar;
+        public final JLabel urlLabel;
+
+        private ControlsForURL(URLAndFile url, JProgressBar progressBar, JLabel urlLabel) {
+            this.url = url;
+            this.progressBar = progressBar;
+            this.urlLabel = urlLabel;
+        }
     }
 
     private void exec(String[] args) {
@@ -154,18 +182,12 @@ public class App {
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                try {
-                    downloader.close();
-                    executor.shutdown();
-                    executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-                } catch (InterruptedException e1) {
-                    Thread.currentThread().interrupt();
-                }
+                stop();
                 super.windowClosing(e);
             }
         });
 
-        ArrayList<GUITask> tasks = new ArrayList<>();
+        ArrayList<ControlsForURL> controls = new ArrayList<>();
         int row = 1;
         for (URLAndFile url : input.getURLs()) {
 
@@ -190,25 +212,36 @@ public class App {
             pb.setStringPainted(true);
             tasksPanel.add(pb, pbC);
 
-            tasks.add(new GUITask(url.getURL(), url.getPath(), pb, urlLabel));
+            controls.add(new ControlsForURL(url, pb, urlLabel));
 
             row++;
         }
 
         threadCountSpinner.setModel(new SpinnerNumberModel(input.getNThreads(), 1, Math.max(input.getNThreads(), 32), 1));
-        threadCountSpinner.addChangeListener(e -> downloader.setThreadsCount((Integer) threadCountSpinner.getValue()));
+        threadCountSpinner.addChangeListener(e -> {
+            if (downloader != null)
+                downloader.setThreadsCount((Integer) threadCountSpinner.getValue());
+        });
 
         startButton.addActionListener(e ->
                 executor.submit(() -> {
                             try {
-                                downloader.run(tasks, (Integer) threadCountSpinner.getValue());
+                                stop();
+                                downloader = new DownloaderImpl();
+                                downloader.run(controls.stream()
+                                        .map(ctrl -> new GUITask(ctrl.url.getURL(), ctrl.url.getPath(), ctrl.progressBar, ctrl.urlLabel))
+                                        .collect(Collectors.toList())
+                                    , (Integer) threadCountSpinner.getValue());
                             } catch (InterruptedException e1) {
                                 Thread.currentThread().interrupt();
                             }
                         }
                 ));
 
-        stopButton.addActionListener(e -> downloader.close());
+        stopButton.addActionListener(e -> {
+            if (downloader != null)
+                downloader.close();
+        });
 
         frame.pack();
         frame.setVisible(true);
