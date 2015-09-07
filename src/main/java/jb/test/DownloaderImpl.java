@@ -17,10 +17,6 @@ public class DownloaderImpl implements Downloader {
 
     private static final int BUFFER_SIZE = 1024;
 
-    private class FutureRequest {
-        public Future<?> future;
-    }
-
     private enum State {
         NOT_STARTED, RUNNING, STOPPED
     }
@@ -31,7 +27,7 @@ public class DownloaderImpl implements Downloader {
     private final Object stateLock = new Object();
 
     // parts of synchronized state
-    private final HashSet<FutureRequest> activeRequests = new HashSet<>();
+    private final HashMap<Runnable, Future<?>> activeRequests = new HashMap<>();
     private final Deque<DownloadingTask> idleTasks = new ArrayDeque<>();
     private int nThreads;
 
@@ -129,15 +125,17 @@ public class DownloaderImpl implements Downloader {
         while (activeRequests.size() > nThreads)
             cancelRequest();
 
-        while (activeRequests.size() < nThreads && !idleTasks.isEmpty()) {
-            DownloadingTask nextTask = idleTasks.remove();
-            addRequest(nextTask);
+        while (activeRequests.size() < nThreads) {
+            Runnable r = getNextRequest();
+            if (r == null)
+                break;
+            addRequest(r);
         }
 
         return true;
     }
 
-    private void processTask(DownloadingTask task, ProgressData progressData, FutureRequest req) {
+    private void processTask(DownloadingTask task, ProgressData progressData, Runnable req) {
         try {
             URLConnection conn = task.getURL().openConnection();
 
@@ -180,23 +178,33 @@ public class DownloaderImpl implements Downloader {
         }
     }
 
-    private void addRequest(DownloadingTask task) {
-        FutureRequest req = new FutureRequest();
-        activeRequests.add(req);
+    private void addRequest(Runnable r) {
+        activeRequests.put(r, executor.submit(r));
+    }
 
+    private Runnable getNextRequest() {
+        if (idleTasks.isEmpty())
+            return null;
+        
+        DownloadingTask task = idleTasks.remove();
         ProgressData progressData = progress.get(task);
-        req.future = executor.submit(() -> processTask(task, progressData, req));
+        return new Runnable() {
+            @Override
+            public void run() {
+                processTask(task, progressData, this);
+            }
+        };
     }
 
     private void cancelRequest() {
-        FutureRequest res;
-        res = activeRequests.iterator().next();
-        if (res != null)
-            res.future.cancel(true);
-        activeRequests.remove(res);
+        Map.Entry<Runnable, Future<?>> res = activeRequests.entrySet().iterator().next();
+        if (res != null) {
+            res.getValue().cancel(true);
+            activeRequests.remove(res.getKey());
+        }
     }
 
-    private synchronized void onTaskFinished(DownloadingTask task, FutureRequest req, boolean cancelled) {
+    private synchronized void onTaskFinished(DownloadingTask task, Runnable req, boolean cancelled) {
         if (cancelled)
             idleTasks.add(task);
         activeRequests.remove(req);
