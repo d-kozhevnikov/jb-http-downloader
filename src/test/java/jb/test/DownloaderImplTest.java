@@ -18,23 +18,23 @@ import static org.junit.Assert.*;
 public class DownloaderImplTest {
 
     private class SuccessCounter {
-        private volatile int successCount = 0;
-        private volatile int failureCount = 0;
+        private final AtomicInteger successCount = new AtomicInteger(0);
+        private final AtomicInteger failureCount = new AtomicInteger(0);
 
         public void incrementSuccess() {
-            ++successCount;
+            successCount.incrementAndGet();
         }
 
         public int getSuccessCount() {
-            return successCount;
+            return successCount.get();
         }
 
         public void incrementFailure() {
-            ++failureCount;
+            failureCount.incrementAndGet();
         }
 
         public int getFailureCount() {
-            return failureCount;
+            return failureCount.get();
         }
     }
 
