@@ -31,7 +31,19 @@ public class DownloaderImpl implements Downloader {
     private final Deque<DownloadingTask> idleTasks = new ArrayDeque<>();
     private int nThreads;
 
-    private final HashMap<DownloadingTask, ProgressData> progress = new HashMap<>();
+    private class TaskData {
+        public final ProgressData progress = new ProgressData();
+        public final boolean acceptsRanges;
+        public final Optional<Long> length;
+        public final TreeSet<Integer> downloadedChunksStart = new TreeSet<>();
+
+        private TaskData(boolean acceptsRanges, Optional<Long> length) {
+            this.acceptsRanges = acceptsRanges;
+            this.length = length;
+        }
+    }
+
+    private final HashMap<DownloadingTask, TaskData> taskDatas = new HashMap<>();
 
     private final Event changedEvent = new Event();
 
@@ -56,17 +68,22 @@ public class DownloaderImpl implements Downloader {
 
         // todo: it should be tasks too
         for (DownloadingTask task : tasks) {
-            ProgressData progressData = new ProgressData();
-            progress.put(task, progressData);
             try {
                 HttpURLConnection conn = (HttpURLConnection) task.getURL().openConnection();
                 conn.setRequestMethod("HEAD");
                 int respCode = conn.getResponseCode();
                 if (respCode / 100 != 2)
                     throw new IOException(String.format("Can't reach %s (HTTP response code %d)", task.getURL(), respCode));
+
+                // Hangs using https(?) (http://bugs.java.com/bugdatabase/view_bug.do?bug_id=6680192)
+                // boolean acceptsRanges = conn.getHeaderField("Accept-Ranges").equals("bytes");
+
+                Optional<Long> contentLength = Optional.empty();
                 long length = conn.getContentLengthLong();
                 if (length >= 0)
-                    progressData.setTotalBytes(length);
+                    contentLength = Optional.of(length);
+
+                taskDatas.put(task, new TaskData(isAcceptingRanges(conn), contentLength));
 
                 idleTasks.add(task);
             } catch (IOException e) {
@@ -83,6 +100,12 @@ public class DownloaderImpl implements Downloader {
         }
     }
 
+    private boolean isAcceptingRanges(HttpURLConnection conn) {
+        Map<String, List<String>> fields = conn.getHeaderFields();
+        List<String> values = fields.get("Accept-Ranges");
+        return values != null && !values.isEmpty() && values.iterator().next().equals("bytes");
+    }
+
     @Override
     public Progress getProgress() {
         // Note: don't care about any changes in progress while collecting it
@@ -90,11 +113,11 @@ public class DownloaderImpl implements Downloader {
 
         long downloaded = 0;
         Optional<Long> sum = Optional.of(0L);
-        for (ProgressData d : progress.values()) {
-            downloaded += d.getDownloadedBytes();
+        for (TaskData d : taskDatas.values()) {
+            downloaded += d.progress.getDownloadedBytes();
 
             if (sum.isPresent()) {
-                Optional<Long> total = d.getTotalBytes();
+                Optional<Long> total = d.progress.getTotalBytes();
                 if (total.isPresent())
                     sum = Optional.of(sum.get() + total.get());
                 else
@@ -185,13 +208,13 @@ public class DownloaderImpl implements Downloader {
     private Runnable getNextRequest() {
         if (idleTasks.isEmpty())
             return null;
-        
+
         DownloadingTask task = idleTasks.remove();
-        ProgressData progressData = progress.get(task);
+        TaskData taskData = taskDatas.get(task);
         return new Runnable() {
             @Override
             public void run() {
-                processTask(task, progressData, this);
+                processTask(task, taskData.progress, this);
             }
         };
     }
