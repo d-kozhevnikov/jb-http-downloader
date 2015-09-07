@@ -62,11 +62,13 @@ public class DownloaderImplTest {
         }
 
         @Override
-        public void onChunkReceived(ByteBuffer chunk) {
-            if (result.remaining() < chunk.limit()) {
+        public void onChunkReceived(ByteBuffer chunk, long offset) {
+            assert offset + chunk.limit() < Integer.MAX_VALUE / 2;
+            if (result.remaining() < offset + chunk.limit()) {
                 result.flip();
-                result = ByteBuffer.allocate(result.capacity() * 2).put(result);
+                result = ByteBuffer.allocate((int)(offset + chunk.limit()) * 2).put(result);
             }
+            result.position((int)offset);
             result.put(chunk);
         }
 
@@ -248,13 +250,13 @@ public class DownloaderImplTest {
                     }
 
                     @Override
-                    public void onChunkReceived(ByteBuffer chunk) {
+                    public void onChunkReceived(ByteBuffer chunk, long offset) {
                         try {
                             sem2.acquire();
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                         }
-                        super.onChunkReceived(chunk);
+                        super.onChunkReceived(chunk, offset);
                     }
 
 

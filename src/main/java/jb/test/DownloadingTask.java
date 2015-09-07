@@ -33,13 +33,13 @@ public interface DownloadingTask {
     void onStart(Optional<Long> contentLength) throws IOException;
 
     /**
-     * Is called when the next data chunk is ready for processing. Subsequent calls represent
-     * adjacent chunks, chunk in the very first call is the chunk with zero offset.
+     * Is called when the next data chunk is ready for processing.
      *
      * @param chunk read-only data chunk
+     * @param offset offset from the beginning of the file, bytes
      * @throws IOException if any error is occurred (see "Error handling strategy")
      */
-    void onChunkReceived(ByteBuffer chunk) throws IOException;
+    void onChunkReceived(ByteBuffer chunk, long offset) throws IOException;
 
     /**
      * Is called when the downloading is finished.
@@ -51,7 +51,7 @@ public interface DownloadingTask {
     /**
      * Is called when the task is cancelled due to decrease of the thread count.
      * Client should drop all processed data, the following
-     * {@link #onChunkReceived(ByteBuffer)} would represent the chunk with zero offset again
+     * {@link #onChunkReceived(ByteBuffer, long)} would represent the chunk with zero offset again
      *
      * @throws IOException if any error is occurred (see "Error handling strategy")
      */

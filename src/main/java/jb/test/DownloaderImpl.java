@@ -188,7 +188,8 @@ public class DownloaderImpl implements Downloader {
                     return;
                 }
                 progressData.addDownloadedBytes(bytesRead);
-                task.onChunkReceived(ByteBuffer.wrap(buffer, 0, bytesRead).asReadOnlyBuffer());
+                task.onChunkReceived(ByteBuffer.wrap(buffer, 0, bytesRead).asReadOnlyBuffer(),
+                        progressData.getDownloadedBytes() - bytesRead);
                 Thread.yield();
             }
 

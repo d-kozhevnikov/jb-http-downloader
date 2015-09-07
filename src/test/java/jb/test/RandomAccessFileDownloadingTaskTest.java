@@ -5,11 +5,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -59,9 +57,9 @@ public class RandomAccessFileDownloadingTaskTest {
     @Test
     public void testOnChunkReceived() throws Exception {
         task.onStart(Optional.of(5L));
-        task.onChunkReceived(ByteBuffer.wrap(new byte[]{0, 1, 2}));
+        task.onChunkReceived(ByteBuffer.wrap(new byte[]{0, 1, 2}), 0);
         assertEquals(task.getWrittenLength(), 3);
-        task.onChunkReceived(ByteBuffer.wrap(new byte[]{3, 4, 5}));
+        task.onChunkReceived(ByteBuffer.wrap(new byte[]{3, 4, 5}), 3);
         assertEquals(task.getWrittenLength(), 6);
         assertTrue(task.getFileLength() > 5L);
         assertEquals(task.getFileLength(), Files.size(path));
@@ -81,7 +79,7 @@ public class RandomAccessFileDownloadingTaskTest {
     @Test
     public void testOnCancel() throws Exception {
         task.onStart(Optional.of(5L));
-        task.onChunkReceived(ByteBuffer.wrap(new byte[]{0, 1, 2}));
+        task.onChunkReceived(ByteBuffer.wrap(new byte[]{0, 1, 2}), 0);
         task.onCancel();
         assertEquals(task.getWrittenLength(), 0);
     }
@@ -89,7 +87,7 @@ public class RandomAccessFileDownloadingTaskTest {
     @Test
     public void testOnDiscard() throws Exception {
         task.onStart(Optional.of(5L));
-        task.onChunkReceived(ByteBuffer.wrap(new byte[]{0, 1, 2}));
+        task.onChunkReceived(ByteBuffer.wrap(new byte[]{0, 1, 2}), 0);
         task.onDiscard();
         assertTrue(Files.notExists(path));
     }

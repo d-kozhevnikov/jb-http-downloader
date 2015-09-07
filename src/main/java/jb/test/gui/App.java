@@ -67,8 +67,8 @@ public class App {
         }
 
         @Override
-        public void onChunkReceived(ByteBuffer chunk) throws IOException {
-            super.onChunkReceived(chunk);
+        public void onChunkReceived(ByteBuffer chunk, long offset) throws IOException {
+            super.onChunkReceived(chunk, offset);
             SwingUtilities.invokeLater(() -> updateProgressBar(false, null));
         }
 

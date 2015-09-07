@@ -51,12 +51,12 @@ public class RandomAccessFileDownloadingTask implements Closeable, DownloadingTa
     }
 
     @Override
-    public void onChunkReceived(ByteBuffer chunk) throws IOException {
-        if (writtenLength + chunk.limit() > fileLength) {
-            fileLength += 0xFFFFL;
+    public void onChunkReceived(ByteBuffer chunk, long offset) throws IOException {
+        if (offset + chunk.limit() > fileLength) {
+            fileLength = offset + chunk.limit() + 0xFFFFL;
             f.setLength(fileLength);
         }
-        writtenLength += channel.write(chunk);
+        writtenLength += channel.write(chunk, offset);
     }
 
     @Override
